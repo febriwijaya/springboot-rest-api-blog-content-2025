@@ -1,9 +1,7 @@
 package com.content.springboot_rest_api.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -44,7 +42,8 @@ public class UserRegisterDto {
     private String phone;
 
     @JsonProperty("birth_date")
-    @NotBlank(message = "birth date cannot be empty")
+    @NotNull(message = "Birth date cannot be empty")
+    @Past(message = "Birth date must be in the past")
     private LocalDate birthDate;
 
     @JsonProperty("job_title")

@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.service.impl;
 
 import com.content.springboot_rest_api.dto.UserRegisterDto;
+import com.content.springboot_rest_api.dto.UserResponseDto;
 import com.content.springboot_rest_api.entity.Role;
 import com.content.springboot_rest_api.entity.User;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
@@ -9,6 +10,10 @@ import com.content.springboot_rest_api.repository.UserRepository;
 import com.content.springboot_rest_api.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
+import org.modelmapper.ModelMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -18,18 +23,32 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
-@AllArgsConstructor
+//@AllArgsConstructor
 public class UserServiceImpl implements UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ModelMapper modelMapper;
 
-    // lokasi folder penyimpanan
-    private static final String UPLOAD_DIR = "uploads/photos/users/";
+    @Value("${app.upload.user-photo-dir}")
+    private String uploadDir;
+
+    public UserServiceImpl(UserRepository userRepository,
+                           RoleRepository roleRepository,
+                           PasswordEncoder passwordEncoder,
+                           ModelMapper modelMapper) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.modelMapper = modelMapper;
+    }
+
     private static final long MAX_SIZE = 2 * 1024 * 1024; // 2MB
 
     // mapping ekstensi -> MIME type yang diperbolehkan
@@ -46,7 +65,7 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @Override
-    public User register(UserRegisterDto dto, MultipartFile foto) {
+    public UserResponseDto register(UserRegisterDto dto, MultipartFile foto) {
         //  validasi username
         if (userRepository.findByUsername(dto.getUsername()).isPresent()) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Username sudah terdaftar");
@@ -62,37 +81,129 @@ public class UserServiceImpl implements UserService {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Nomor Hp sudah terdaftar");
         }
 
-        //  validasi + simpan foto
+        // Validasi dan simpan foto
         String fotoPath = null;
-        if (foto != null && !foto.isEmpty()) {
+        if(foto != null && !foto.isEmpty()) {
             validateFile(foto);
             fotoPath = saveFile(foto, dto.getUsername());
         }
 
-        //  buat user baru
-        User user = new User();
-        user.setFullName(dto.getFullName());
-        user.setUsername(dto.getUsername());
-        user.setPassword(passwordEncoder.encode(dto.getPassword())); // encode password
-        user.setEmail(dto.getEmail());
-        user.setPhone(dto.getPhone());
-        user.setBirthDate(dto.getBirthDate());
-        user.setJobTitle(dto.getJobTitle());
-        user.setLocation(dto.getLocation());
+        // mapping dto -> entity
+        User user = modelMapper.map(dto, User.class);
+        // encode password
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setFoto(fotoPath);
-        user.setGender(dto.getGender());
+
 
         //  set default role = ROLE_USER
         Role userRole = roleRepository.findByName("ROLE_USER")
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR, "Role USER belum tersedia"));
-        user.getRoles().add(userRole);
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Role USER belum tersedia"));
+        user.setRoles(Collections.singleton(userRole));
 
-        //  simpan user
-        return userRepository.save(user);
+        //  simpan ke database
+        User savedUser = userRepository.save(user);
+
+        // mapping entity -> response dto
+       UserResponseDto response = modelMapper.map(savedUser, UserResponseDto.class);
+       response.setRoles(Set.of("ROLE_USER"));
+
+       return response;
+    }
+
+    @Transactional
+    @Override
+    public UserResponseDto update(Long id, UserRegisterDto dto, MultipartFile foto) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+
+        // Update field lain dari DTO (selain password yg sudah di-handle)
+        modelMapper.map(dto, user);
+
+        // Update foto
+        if (foto != null && !foto.isEmpty()) {
+            validateFile(foto);
+
+            // hapus foto lama jika ada
+            if (user.getFoto() != null && !user.getFoto().isBlank()) {
+                try {
+                    // ambil nama file saja dari path DB
+                    String existingFileName = Paths.get(user.getFoto()).getFileName().toString();
+                    Path existingFilePath = Paths.get(uploadDir).toAbsolutePath().resolve(existingFileName);
+
+                    Files.deleteIfExists(existingFilePath);
+                } catch (IOException e) {
+                    log.warn("Gagal menghapus file foto lama: {}", user.getFoto(), e);
+                }
+            }
+
+            // simpan foto baru
+            String fotoPath = saveFile(foto, dto.getUsername());
+            user.setFoto(fotoPath);
+        }
+
+        // update password jika ada
+        if (dto.getPassword() != null && !dto.getPassword().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        }
+
+        User updated = userRepository.save(user);
+        UserResponseDto response = modelMapper.map(updated, UserResponseDto.class);
+        response.setRoles(
+                updated.getRoles().stream().map(Role::getName).collect(Collectors.toSet())
+        );
+        return response;
+    }
+
+    @Override
+    public List<UserResponseDto> getAll() {
+        List<User> users = userRepository.findAll();
+        return users.stream()
+                .map(user -> {
+                    UserResponseDto dto = modelMapper.map(user, UserResponseDto.class);
+                    dto.setRoles(user.getRoles().stream().map(Role::getName).collect(java.util.stream.Collectors.toSet()));
+                    return dto;
+                })
+                .toList();
+    }
+
+    @Override
+    public UserResponseDto getById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+        UserResponseDto dto = modelMapper.map(user, UserResponseDto.class);
+        dto.setRoles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()));
+        return dto;
+    }
+
+    @Transactional
+    @Override
+    public void delete(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+
+        // hapus foto jika ada
+        if (user.getFoto() != null && !user.getFoto().isBlank()) {
+            try {
+                // ambil nama file saja dari path DB
+                String existingFileName = Paths.get(user.getFoto()).getFileName().toString();
+                Path existingFilePath = Paths.get(uploadDir).toAbsolutePath().resolve(existingFileName);
+
+                Files.deleteIfExists(existingFilePath);
+            } catch (IOException e) {
+                log.warn("Gagal menghapus file foto: {}", user.getFoto(), e);
+            }
+        }
+
+        // hapus data user
+        userRepository.delete(user);
     }
 
     // helper methods
     private void validateFile(MultipartFile file) {
+        log.info("Validating file: name={}, size={}, mime={}",
+                file.getOriginalFilename(), file.getSize(), file.getContentType());
+
         // ukuran max
         if (file.getSize() > MAX_SIZE) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Ukuran photo maksimal 2MB");
@@ -120,25 +231,38 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    // helper method : simpan file
     private String saveFile(MultipartFile file, String username) {
         try {
-            // buat folder jika belum ada
-            Path uploadPath = Paths.get(UPLOAD_DIR);
+            // Buat path absolut untuk folder upload
+            Path uploadPath = Paths.get(uploadDir).toAbsolutePath();
+
+            // Buat folder jika belum ada
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
             }
 
-            // nama file unik
-            String originalFileName = file.getOriginalFilename();
+            // Ambil ekstensi file
+            String originalFileName = Objects.requireNonNull(file.getOriginalFilename());
             String extension = originalFileName.substring(originalFileName.lastIndexOf(".")).toLowerCase();
+
+            // Buat nama file unik: username_timestamp.ext
             String fileName = username + "_" + System.currentTimeMillis() + extension;
 
+            // Full path tempat file akan disimpan
             Path filePath = uploadPath.resolve(fileName);
+
+            // Simpan file
             file.transferTo(filePath.toFile());
 
-            return UPLOAD_DIR + fileName;
+            // Kembalikan relative path sesuai WebConfig
+            // Jadi nantinya bisa diakses via /photos/users/filename
+            return "/uploads/photos/users/" + fileName;
+
         } catch (IOException e) {
-            throw new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR, "Gagal menyimpan file foto");
+            log.error("Error saat menyimpan file foto: {}", e.getMessage(), e);
+            throw new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Gagal menyimpan file foto: " + e.getMessage());
         }
     }
 }

@@ -10,36 +10,49 @@ import com.content.springboot_rest_api.repository.CategoryRepository;
 import com.content.springboot_rest_api.repository.UserRepository;
 import com.content.springboot_rest_api.service.ArticleService;
 import jakarta.transaction.Transactional;
-import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@AllArgsConstructor
+@Slf4j
 public class ArticleServiceImpl implements ArticleService {
 
     private final UserRepository userRepository;
-    private final ModelMapper modelMapper;
     private final CategoryRepository categoryRepository;
     private final ArticlesRepository articlesRepository;
+    private final ModelMapper modelMapper;
 
-    // Folder utama penyimpanan foto (sesuai WebConfig)
-    private static final String UPLOAD_DIR = "uploads/photos/thumbnails/";
+    @Value("${app.upload.article-photo-dir}")
+    private String uploadDir;
+
+    // Constructor injection untuk repository & modelMapper saja
+    public ArticleServiceImpl(UserRepository userRepository,
+                              CategoryRepository categoryRepository,
+                              ArticlesRepository articlesRepository,
+                              ModelMapper modelMapper) {
+        this.userRepository = userRepository;
+        this.categoryRepository = categoryRepository;
+        this.articlesRepository = articlesRepository;
+        this.modelMapper = modelMapper;
+    }
 
     private static final long MAX_SIZE = 2 * 1024 * 1024; // 2 MB
-    private static final List<String> ALLOWED_EXTENSIONS = List.of("png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "heif");
-    private static final List<String> ALLOWED_MIME_TYPES = List.of(
-            "image/png", "image/jpeg", "image/gif",
-            "image/webp", "image/svg+xml", "image/heic", "image/heif"
-    );
+    private static final List<String> ALLOWED_EXTENSIONS =
+            List.of("png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "heif");
+    private static final List<String> ALLOWED_MIME_TYPES =
+            List.of("image/png", "image/jpeg", "image/gif",
+                    "image/webp", "image/svg+xml", "image/heic", "image/heif");
 
     // ---------------- CREATE ----------------
     @Transactional
@@ -60,7 +73,6 @@ public class ArticleServiceImpl implements ArticleService {
         if (thumbnail != null && !thumbnail.isEmpty()) {
             validateFile(thumbnail);
             String fileName = saveFile(thumbnail);
-            // Simpan hanya nama file → nanti diakses via URL /photos/thumbnails/{fileName}
             article.setThumbnailUrl("thumbnails/" + fileName);
         }
 
@@ -81,7 +93,6 @@ public class ArticleServiceImpl implements ArticleService {
     public ArticleDto getArticleById(Long id) {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
-
         return mapToResponse(article);
     }
 
@@ -92,29 +103,26 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
+        // Mapping sebagian field (manual karena update opsional)
         if (dto.getTitle() != null) {
             article.setTitle(dto.getTitle());
             article.setSlug(generateSlug(dto.getTitle()));
         }
-
         if (dto.getContent() != null) {
             article.setContent(dto.getContent());
         }
-
         if (dto.getCategoryId() != null) {
             Category category = categoryRepository.findById(dto.getCategoryId())
                     .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Category not found"));
             article.setCategory(category);
         }
 
+        // Update thumbnail
         if (thumbnail != null && !thumbnail.isEmpty()) {
             validateFile(thumbnail);
-
-            // Hapus thumbnail lama jika ada
             if (article.getThumbnailUrl() != null) {
                 deleteFile(article.getThumbnailUrl());
             }
-
             String fileName = saveFile(thumbnail);
             article.setThumbnailUrl("thumbnails/" + fileName);
         }
@@ -135,6 +143,7 @@ public class ArticleServiceImpl implements ArticleService {
         }
 
         articlesRepository.delete(article);
+        log.info("Article with id {} deleted successfully", id);
     }
 
     // ---------------- Helper Methods ----------------
@@ -164,17 +173,18 @@ public class ArticleServiceImpl implements ArticleService {
 
     private String saveFile(MultipartFile file) {
         try {
-            File dir = new File(UPLOAD_DIR);
+            File dir = new File(uploadDir);
             if (!dir.exists()) {
                 dir.mkdirs();
             }
 
             String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-            File dest = new File(UPLOAD_DIR + fileName);
+            File dest = Paths.get(uploadDir, fileName).toFile();
             file.transferTo(dest);
 
             return fileName;
         } catch (IOException e) {
+            log.error("Error saving file: {}", e.getMessage());
             throw new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to store file: " + e.getMessage());
         }
@@ -182,8 +192,8 @@ public class ArticleServiceImpl implements ArticleService {
 
     private void deleteFile(String filePath) {
         File file = new File("uploads/photos/" + filePath);
-        if (file.exists()) {
-            file.delete();
+        if (file.exists() && !file.delete()) {
+            log.warn("Failed to delete file: {}", filePath);
         }
     }
 
@@ -201,7 +211,6 @@ public class ArticleServiceImpl implements ArticleService {
         if (article.getThumbnailUrl() != null) {
             dto.setThumbnailUrl("/photos/" + article.getThumbnailUrl()); // URL publik
         }
-
         return dto;
     }
 }

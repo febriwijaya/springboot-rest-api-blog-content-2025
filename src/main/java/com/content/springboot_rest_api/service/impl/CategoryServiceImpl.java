@@ -7,6 +7,7 @@ import com.content.springboot_rest_api.repository.CategoryRepository;
 import com.content.springboot_rest_api.service.CategoryService;
 import lombok.AllArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +19,6 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
 
     private CategoryRepository categoryRepository;
-
     private ModelMapper modelMapper;
 
     @Override
