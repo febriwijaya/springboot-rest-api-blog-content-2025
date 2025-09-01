@@ -17,11 +17,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.UUID;
+import java.nio.file.*;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,9 +32,8 @@ public class ArticleServiceImpl implements ArticleService {
     private final ModelMapper modelMapper;
 
     @Value("${app.upload.article-photo-dir}")
-    private String uploadDir;
+    private String thumbnailDir; // e.g. "uploads/photos/thumbnails"
 
-    // Constructor injection untuk repository & modelMapper saja
     public ArticleServiceImpl(UserRepository userRepository,
                               CategoryRepository categoryRepository,
                               ArticlesRepository articlesRepository,
@@ -47,17 +44,23 @@ public class ArticleServiceImpl implements ArticleService {
         this.modelMapper = modelMapper;
     }
 
-    private static final long MAX_SIZE = 2 * 1024 * 1024; // 2 MB
-    private static final List<String> ALLOWED_EXTENSIONS =
-            List.of("png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "heif");
-    private static final List<String> ALLOWED_MIME_TYPES =
-            List.of("image/png", "image/jpeg", "image/gif",
-                    "image/webp", "image/svg+xml", "image/heic", "image/heif");
+    // === VALIDATION CONST (disamakan dgn UserServiceImpl) ===
+    private static final long MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    private static final Map<String, String> ALLOWED_TYPES = Map.ofEntries(
+            Map.entry("png",  "image/png"),
+            Map.entry("jpg",  "image/jpeg"),
+            Map.entry("jpeg", "image/jpeg"),
+            Map.entry("gif",  "image/gif"),
+            Map.entry("webp", "image/webp"),
+            Map.entry("svg",  "image/svg+xml"),
+            Map.entry("heic", "image/heic"),
+            Map.entry("heif", "image/heif")
+    );
 
     // ---------------- CREATE ----------------
     @Transactional
     @Override
-    public ArticleDto createArticle(ArticleDto articleDto, MultipartFile thumbnail, Long authorId) throws IOException {
+    public ArticleDto createArticle(ArticleDto articleDto, MultipartFile thumbnail, Long authorId) {
         User author = userRepository.findById(authorId)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Author not found"));
 
@@ -72,8 +75,8 @@ public class ArticleServiceImpl implements ArticleService {
 
         if (thumbnail != null && !thumbnail.isEmpty()) {
             validateFile(thumbnail);
-            String fileName = saveFile(thumbnail);
-            article.setThumbnailUrl("thumbnails/" + fileName);
+            String path = saveFile(thumbnail, article.getSlug());
+            article.setThumbnailUrl(path); // simpan relative URL
         }
 
         Article saved = articlesRepository.save(article);
@@ -99,11 +102,10 @@ public class ArticleServiceImpl implements ArticleService {
     // ---------------- UPDATE ----------------
     @Transactional
     @Override
-    public ArticleDto updateArticle(Long id, ArticleDto dto, MultipartFile thumbnail) throws IOException {
+    public ArticleDto updateArticle(Long id, ArticleDto dto, MultipartFile thumbnail) {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
-        // Mapping sebagian field (manual karena update opsional)
         if (dto.getTitle() != null) {
             article.setTitle(dto.getTitle());
             article.setSlug(generateSlug(dto.getTitle()));
@@ -117,14 +119,24 @@ public class ArticleServiceImpl implements ArticleService {
             article.setCategory(category);
         }
 
-        // Update thumbnail
+        // === samakan dengan UserServiceImpl: hapus lama -> simpan baru ===
         if (thumbnail != null && !thumbnail.isEmpty()) {
             validateFile(thumbnail);
-            if (article.getThumbnailUrl() != null) {
-                deleteFile(article.getThumbnailUrl());
+
+            // hapus file lama jika ada
+            if (article.getThumbnailUrl() != null && !article.getThumbnailUrl().isBlank()) {
+                try {
+                    String existingFileName = Paths.get(article.getThumbnailUrl()).getFileName().toString();
+                    Path existingFilePath = Paths.get(thumbnailDir).toAbsolutePath().resolve(existingFileName);
+                    Files.deleteIfExists(existingFilePath);
+                } catch (IOException e) {
+                    log.warn("Gagal menghapus thumbnail lama: {}", article.getThumbnailUrl(), e);
+                }
             }
-            String fileName = saveFile(thumbnail);
-            article.setThumbnailUrl("thumbnails/" + fileName);
+
+            // simpan file baru
+            String path = saveFile(thumbnail, article.getSlug() != null ? article.getSlug() : "article");
+            article.setThumbnailUrl(path);
         }
 
         Article updated = articlesRepository.save(article);
@@ -138,62 +150,72 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
-        if (article.getThumbnailUrl() != null) {
-            deleteFile(article.getThumbnailUrl());
+        // hapus file jika ada (pola sama seperti UserServiceImpl.delete)
+        if (article.getThumbnailUrl() != null && !article.getThumbnailUrl().isBlank()) {
+            try {
+                String existingFileName = Paths.get(article.getThumbnailUrl()).getFileName().toString();
+                Path existingFilePath = Paths.get(thumbnailDir).toAbsolutePath().resolve(existingFileName);
+                Files.deleteIfExists(existingFilePath);
+            } catch (IOException e) {
+                log.warn("Gagal menghapus thumbnail: {}", article.getThumbnailUrl(), e);
+            }
         }
 
         articlesRepository.delete(article);
         log.info("Article with id {} deleted successfully", id);
     }
 
-    // ---------------- Helper Methods ----------------
+    // ---------------- Helper Methods (COPY STYLE UserServiceImpl) ----------------
     private void validateFile(MultipartFile file) {
+        log.info("Validating thumbnail: name={}, size={}, mime={}",
+                file.getOriginalFilename(), file.getSize(), file.getContentType());
+
         if (file.getSize() > MAX_SIZE) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "File size exceeds the maximum allowed size (2MB)");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Ukuran thumbnail maksimal 2MB");
         }
 
         String originalFileName = file.getOriginalFilename();
         if (originalFileName == null || !originalFileName.contains(".")) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "File name is invalid");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Format file tidak valid");
         }
 
-        String extension = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+        String ext = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
+        if (!ALLOWED_TYPES.containsKey(ext)) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "Invalid file type. Allowed: " + String.join(", ", ALLOWED_EXTENSIONS));
+                    "Format file tidak valid. Hanya boleh: " + String.join(", ", ALLOWED_TYPES.keySet()));
         }
 
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_MIME_TYPES.contains(contentType.toLowerCase())) {
+        String mimeType = file.getContentType();
+        if (mimeType == null || !mimeType.equalsIgnoreCase(ALLOWED_TYPES.get(ext))) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "Invalid file type. Allowed MIME types: " + String.join(", ", ALLOWED_MIME_TYPES));
+                    "MIME type tidak sesuai dengan ekstensi file (" + ext + ")");
         }
     }
 
-    private String saveFile(MultipartFile file) {
+    // simpan file -> return relative URL (persis seperti UserServiceImpl)
+    private String saveFile(MultipartFile file, String slugSeed) {
         try {
-            File dir = new File(uploadDir);
-            if (!dir.exists()) {
-                dir.mkdirs();
+            Path uploadPath = Paths.get(thumbnailDir).toAbsolutePath();
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
             }
 
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-            File dest = Paths.get(uploadDir, fileName).toFile();
-            file.transferTo(dest);
+            String originalFileName = Objects.requireNonNull(file.getOriginalFilename());
+            String extWithDot = originalFileName.substring(originalFileName.lastIndexOf(".")).toLowerCase();
 
-            return fileName;
+            String safeSeed = (slugSeed == null || slugSeed.isBlank()) ? "article" : slugSeed;
+            String fileName = safeSeed + "_" + System.currentTimeMillis() + extWithDot;
+
+            Path filePath = uploadPath.resolve(fileName);
+            file.transferTo(filePath.toFile());
+
+            // URL publik sesuai WebConfig
+            return "/uploads/photos/thumbnails/" + fileName;
+
         } catch (IOException e) {
-            log.error("Error saving file: {}", e.getMessage());
+            log.error("Error saat menyimpan thumbnail: {}", e.getMessage(), e);
             throw new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to store file: " + e.getMessage());
-        }
-    }
-
-    private void deleteFile(String filePath) {
-        File file = new File("uploads/photos/" + filePath);
-        if (file.exists() && !file.delete()) {
-            log.warn("Failed to delete file: {}", filePath);
+                    "Gagal menyimpan thumbnail: " + e.getMessage());
         }
     }
 
@@ -208,9 +230,8 @@ public class ArticleServiceImpl implements ArticleService {
         dto.setCategoryId(article.getCategory().getId());
         dto.setCategoryName(article.getCategory().getName());
 
-        if (article.getThumbnailUrl() != null) {
-            dto.setThumbnailUrl("/photos/" + article.getThumbnailUrl()); // URL publik
-        }
+        // sudah tersimpan sebagai relative URL; langsung pakai
+        dto.setThumbnailUrl(article.getThumbnailUrl());
         return dto;
     }
 }

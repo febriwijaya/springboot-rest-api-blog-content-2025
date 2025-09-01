@@ -23,7 +23,10 @@ public class ArticleController {
 
     private ArticleService articleService;
 
-    @PostMapping( consumes = {"multipart/form-data"} )
+    @PostMapping(
+            value = "/add",
+            consumes = {"multipart/form-data"}
+    )
     public ResponseEntity<?> addArticle(
             @RequestPart("data") @Valid ArticleDto dto,
             @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail,
