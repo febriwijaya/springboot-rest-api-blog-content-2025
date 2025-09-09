@@ -1,5 +1,7 @@
 package com.content.springboot_rest_api.controller;
 
+import com.content.springboot_rest_api.dto.LoginDto;
+import com.content.springboot_rest_api.dto.LoginResponseDto;
 import com.content.springboot_rest_api.dto.UserRegisterDto;
 import com.content.springboot_rest_api.dto.UserResponseDto;
 import com.content.springboot_rest_api.exception.ErrorDetails;
@@ -37,6 +39,20 @@ public class AuthController {
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
             log.error("Unexpected error while registering user", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginDto loginDto) {
+        try {
+            LoginResponseDto response = userService.login(loginDto);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while login user", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while login user", e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

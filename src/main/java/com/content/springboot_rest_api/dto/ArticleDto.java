@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -43,4 +45,12 @@ public class ArticleDto {
 
     @JsonProperty("is_approve")
     private String isApprove;
+
+    private Long views = 0L;
+
+    @JsonProperty("tag_ids")
+    private List<Long> tagIds;
+
+    @JsonProperty("tag_names")
+    private List<String> tagNames;
 }

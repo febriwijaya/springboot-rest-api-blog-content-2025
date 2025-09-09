@@ -1,10 +1,14 @@
 package com.content.springboot_rest_api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "articles")
@@ -24,15 +28,29 @@ public class Article extends BaseEntity{
     @Column(nullable = false, columnDefinition = "LONGTEXT")
     private  String content;
 
-    private  String thumbnailUrl;
+    @Column(length = 500)
+    private String thumbnailUrl;
 
+    @Column(name = "is_approve", nullable = false, length = 20)
     private String isApprove;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     private  User author;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
+
+    @Column(nullable = false)
+    private Long views = 0L;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "article_tags",
+            joinColumns = @JoinColumn(name = "article_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    @JsonIgnore
+    private Set<Tag> tags = new HashSet<>();
 }

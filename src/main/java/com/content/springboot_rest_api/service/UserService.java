@@ -1,5 +1,7 @@
 package com.content.springboot_rest_api.service;
 
+import com.content.springboot_rest_api.dto.LoginDto;
+import com.content.springboot_rest_api.dto.LoginResponseDto;
 import com.content.springboot_rest_api.dto.UserRegisterDto;
 import com.content.springboot_rest_api.dto.UserResponseDto;
 import com.content.springboot_rest_api.entity.User;
@@ -18,4 +20,5 @@ public interface UserService {
 
     void delete(Long id);
 
-    }
+    LoginResponseDto login(LoginDto loginDto);
+}

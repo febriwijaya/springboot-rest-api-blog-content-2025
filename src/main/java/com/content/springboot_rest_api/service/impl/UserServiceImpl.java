@@ -1,5 +1,7 @@
 package com.content.springboot_rest_api.service.impl;
 
+import com.content.springboot_rest_api.dto.LoginDto;
+import com.content.springboot_rest_api.dto.LoginResponseDto;
 import com.content.springboot_rest_api.dto.UserRegisterDto;
 import com.content.springboot_rest_api.dto.UserResponseDto;
 import com.content.springboot_rest_api.entity.Role;
@@ -7,6 +9,7 @@ import com.content.springboot_rest_api.entity.User;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.RoleRepository;
 import com.content.springboot_rest_api.repository.UserRepository;
+import com.content.springboot_rest_api.security.JwtTokenProvider;
 import com.content.springboot_rest_api.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
@@ -15,6 +18,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,6 +40,8 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
     private final ModelMapper modelMapper;
 
     @Value("${app.upload.user-photo-dir}")
@@ -42,10 +50,14 @@ public class UserServiceImpl implements UserService {
     public UserServiceImpl(UserRepository userRepository,
                            RoleRepository roleRepository,
                            PasswordEncoder passwordEncoder,
+                           AuthenticationManager authenticationManager,
+                           JwtTokenProvider jwtTokenProvider,
                            ModelMapper modelMapper) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authenticationManager = authenticationManager;
+        this.jwtTokenProvider = jwtTokenProvider;
         this.modelMapper = modelMapper;
     }
 
@@ -197,6 +209,34 @@ public class UserServiceImpl implements UserService {
 
         // hapus data user
         userRepository.delete(user);
+    }
+
+    @Override
+    public LoginResponseDto login(LoginDto loginDto) {
+        // cek apakah username ada
+        User user = userRepository.findByUsername(loginDto.getUsername())
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Username Not Found"));
+
+        // cek password valid
+        if(!passwordEncoder.matches(loginDto.getPassword(), user.getPassword())) {
+                throw new GlobalAPIException(HttpStatus.UNAUTHORIZED, "Incorrect username or password");
+        }
+
+        // buat Authentication object
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginDto.getUsername(), loginDto.getPassword())
+        );
+
+        // generate JWT token
+        String token = jwtTokenProvider.generateToken(authentication);
+
+        // ambil roles user
+        Set<String> roles = user.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        return new LoginResponseDto(token, "Bearer", user.getUsername(), roles);
     }
 
     // helper methods

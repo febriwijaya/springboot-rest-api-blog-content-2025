@@ -29,11 +29,10 @@ public class ArticleController {
     )
     public ResponseEntity<?> addArticle(
             @RequestPart("data") @Valid ArticleDto dto,
-            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail,
-            @RequestParam Long authorId
+            @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail
             ) {
         try {
-           ArticleDto response = articleService.createArticle(dto, thumbnail, authorId);
+           ArticleDto response = articleService.createArticle(dto, thumbnail, dto.getAuthorId());
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (GlobalAPIException apiEx) {
             log.error("Error while creating article", apiEx);

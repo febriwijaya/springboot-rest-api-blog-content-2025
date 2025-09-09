@@ -3,10 +3,12 @@ package com.content.springboot_rest_api.service.impl;
 import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.entity.Article;
 import com.content.springboot_rest_api.entity.Category;
+import com.content.springboot_rest_api.entity.Tag;
 import com.content.springboot_rest_api.entity.User;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.ArticlesRepository;
 import com.content.springboot_rest_api.repository.CategoryRepository;
+import com.content.springboot_rest_api.repository.TagRepository;
 import com.content.springboot_rest_api.repository.UserRepository;
 import com.content.springboot_rest_api.service.ArticleService;
 import jakarta.transaction.Transactional;
@@ -29,6 +31,7 @@ public class ArticleServiceImpl implements ArticleService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final ArticlesRepository articlesRepository;
+    private final TagRepository tagRepository;
     private final ModelMapper modelMapper;
 
     @Value("${app.upload.article-photo-dir}")
@@ -37,10 +40,12 @@ public class ArticleServiceImpl implements ArticleService {
     public ArticleServiceImpl(UserRepository userRepository,
                               CategoryRepository categoryRepository,
                               ArticlesRepository articlesRepository,
+                              TagRepository tagRepository,
                               ModelMapper modelMapper) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.articlesRepository = articlesRepository;
+        this.tagRepository = tagRepository;
         this.modelMapper = modelMapper;
     }
 
@@ -71,7 +76,13 @@ public class ArticleServiceImpl implements ArticleService {
         article.setAuthor(author);
         article.setCategory(category);
         article.setSlug(generateSlug(articleDto.getTitle()));
-        article.setIsApprove("N");
+        article.setIsApprove("P");
+
+        // ✅ handle tags
+        if (articleDto.getTagIds() != null && !articleDto.getTagIds().isEmpty()) {
+            Set<Tag> tags = new HashSet<>(tagRepository.findAllById(articleDto.getTagIds()));
+            article.setTags(tags);
+        }
 
         if (thumbnail != null && !thumbnail.isEmpty()) {
             validateFile(thumbnail);
@@ -93,9 +104,21 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    @Transactional
     public ArticleDto getArticleById(Long id) {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
+
+        // jika di klik view maka jumlah view bertambah 1
+
+        // jika null, set 0 dulu
+        if (article.getViews() == null) {
+            article.setViews(0L);
+        }
+
+        article.setViews(article.getViews() + 1);
+        articlesRepository.save(article);
+
         return mapToResponse(article);
     }
 
@@ -117,6 +140,11 @@ public class ArticleServiceImpl implements ArticleService {
             Category category = categoryRepository.findById(dto.getCategoryId())
                     .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Category not found"));
             article.setCategory(category);
+        }
+
+        if (dto.getTagIds() != null) {
+            Set<Tag> tags = new HashSet<>(tagRepository.findAllById(dto.getTagIds()));
+            article.setTags(tags); // replace lama dengan baru
         }
 
         // === samakan dengan UserServiceImpl: hapus lama -> simpan baru ===
@@ -220,7 +248,9 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     private String generateSlug(String title) {
-        return title.toLowerCase().replaceAll("[^a-z0-9]+", "-");
+        return title.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", ""); // hapus - di awal/akhir
     }
 
     private ArticleDto mapToResponse(Article article) {
@@ -232,6 +262,21 @@ public class ArticleServiceImpl implements ArticleService {
 
         // sudah tersimpan sebagai relative URL; langsung pakai
         dto.setThumbnailUrl(article.getThumbnailUrl());
+
+        // ✅ tambahkan mapping tags
+        if (article.getTags() != null && !article.getTags().isEmpty()) {
+            dto.setTagIds(article.getTags().stream()
+                    .map(Tag::getId)
+                    .toList());
+
+            dto.setTagNames(article.getTags().stream()
+                    .map(Tag::getName)
+                    .toList());
+        } else {
+            dto.setTagIds(Collections.emptyList());
+            dto.setTagNames(Collections.emptyList());
+        }
+
         return dto;
     }
 }

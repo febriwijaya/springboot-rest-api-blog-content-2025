@@ -1,13 +1,13 @@
 package com.content.springboot_rest_api.controller;
 
-import com.content.springboot_rest_api.dto.CategoryDto;
+
+import com.content.springboot_rest_api.dto.TagDto;
 import com.content.springboot_rest_api.exception.ErrorDetails;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
-import com.content.springboot_rest_api.service.CategoryService;
+import com.content.springboot_rest_api.service.TagService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,23 +16,24 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/categories")
+@RequestMapping("/api/tags")
 @AllArgsConstructor
 @Slf4j //-- tambah logger untuk tangkap error
-public class CategoryController {
 
-    private CategoryService categoryService;
+public class TagsController {
+
+    private TagService tagService;
 
     @PostMapping
-    public ResponseEntity<?> addCategory(@Valid @RequestBody CategoryDto categoryDto) {
+    public ResponseEntity<?> addTags(@Valid @RequestBody TagDto tagDto) {
         try {
-            CategoryDto savedCategory = categoryService.addCategory(categoryDto);
-            return new ResponseEntity<>(savedCategory, HttpStatus.CREATED);
+            TagDto savedTags = tagService.createTags(tagDto);
+            return new ResponseEntity<>(savedTags, HttpStatus.CREATED);
         } catch (GlobalAPIException apiEx) {
-            log.error("Error while creating category", apiEx);
+            log.error("Error while creating Tags", apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
-            log.error("Unexpected error while creating category", e);
+            log.error("Unexpected error while creating tags", e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -40,61 +41,64 @@ public class CategoryController {
     @GetMapping
     public ResponseEntity<?> getAllCategories() {
         try {
-            List<CategoryDto> categories = categoryService.getAllCategories();
-            return ResponseEntity.ok(categories);
+            List<TagDto> tags = tagService.getAllTags();
+            return ResponseEntity.ok(tags);
         } catch (GlobalAPIException apiEx) {
-            log.error("Error while fetching all category", apiEx);
+            log.error("Error while fetching all tags", apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
-            log.error("Unexpected error while fetching all category", e);
+            log.error("Unexpected error while fetching all tags", e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     @GetMapping("{id}")
-    public ResponseEntity<?> getCategoryById(@PathVariable("id") Long id) {
+    public ResponseEntity<?> getTagById(@PathVariable("id") Long id) {
         try {
-            CategoryDto categoryDto = categoryService.getCategory(id);
-            return new ResponseEntity<>(categoryDto, HttpStatus.OK);
+            TagDto tagDto = tagService.getTagsById(id);
+            return new ResponseEntity<>(tagDto, HttpStatus.OK);
         } catch (GlobalAPIException apiEx) {
-            log.error("Error while fetching category with id {}", id, apiEx);
+            log.error("Error while fetching tag with id {}", id, apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
-            log.error("Unexpected error while fetching category with id {}", id, e);
+            log.error("Unexpected error while fetching tag with id {}", id, e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     @PutMapping("{id}")
-    public  ResponseEntity<?> updateCategory(
+    public ResponseEntity<?> updateTags (
             @PathVariable("id") Long id,
-            @Valid @RequestBody CategoryDto categoryDto
+            @Valid @RequestBody TagDto tagDto
     ) {
         try {
-            CategoryDto updated = categoryService.updateCategory(id, categoryDto);
+            TagDto updated = tagService.updateTags(id, tagDto);
             return ResponseEntity.ok(updated);
         } catch (GlobalAPIException apiEx) {
-            log.error("Error while updating category with id {}", id, apiEx);
+            log.error("Error while updating tag with id {}", id, apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
-            log.error("Unexpected error while updating category with id {}", id, e);
+            log.error("Unexpected error while updating tag with id {}", id, e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
+
     @DeleteMapping("{id}")
-    public  ResponseEntity<?> deleteCategory(@PathVariable("id") Long id) {
+    public ResponseEntity<?> deleteTagsById(@PathVariable("id") Long id) {
+
         try {
-             categoryService.deleteCategory(id);
-             return ResponseEntity.ok("Category deleted Successfully!");
-        }  catch (GlobalAPIException apiEx) {
-            log.error("Error while deleting category with id {}", id, apiEx);
+            tagService.deleteTag(id);
+            return ResponseEntity.ok("Tag deleted successfully");
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while deleting tag with id {}", id, apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
-            log.error("Unexpected error while deleting category with id {}", id, e);
+            log.error("Unexpected error while deleting tag with id {}", id, e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
 
     //  Helper method biar engga copy-paste error response
     private ResponseEntity<ErrorDetails> buildErrorResponse(String message, String details, HttpStatus status) {
