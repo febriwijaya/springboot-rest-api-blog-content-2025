@@ -26,7 +26,7 @@ public class JwtTokenProvider {
                 .setSubject(username)             // simpan username
                 .setIssuedAt(now)                 // waktu dibuat
                 .setExpiration(expiryDate)        // waktu expired
-                .signWith(SignatureAlgorithm.HS512, jwtSecret) // pakai secret biasa
+                .signWith(SignatureAlgorithm.HS256, jwtSecret) // pakai secret biasa
                 .compact();
     }
 
