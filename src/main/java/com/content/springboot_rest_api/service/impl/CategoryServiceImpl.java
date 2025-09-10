@@ -1,8 +1,11 @@
 package com.content.springboot_rest_api.service.impl;
 
+import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.dto.CategoryDto;
+import com.content.springboot_rest_api.entity.Article;
 import com.content.springboot_rest_api.entity.Category;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
+import com.content.springboot_rest_api.repository.ArticlesRepository;
 import com.content.springboot_rest_api.repository.CategoryRepository;
 import com.content.springboot_rest_api.service.CategoryService;
 import lombok.AllArgsConstructor;
@@ -21,6 +24,7 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
 
     private CategoryRepository categoryRepository;
+    private ArticlesRepository articlesRepository;
     private ModelMapper modelMapper;
 
     @Override
@@ -108,5 +112,31 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() ->  new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Category not found with id : " + id));
         categoryRepository.delete(category);
+    }
+
+    @Override
+    public List<ArticleDto> getArticlesByCategorySlug(String slug) {
+        // Cek apakah category ada
+        Category category = categoryRepository.findBySlug(slug)
+                .orElseThrow(() -> new GlobalAPIException(
+                        HttpStatus.NOT_FOUND,
+                        "Category not found with slug : " + slug
+                ));
+
+        // Ambil semua artikel berdasarkan kategori
+        List<Article> articles = articlesRepository.findByCategory(category);
+
+        // Validasi kalau artikel kosong
+        if (articles.isEmpty()) {
+            throw new GlobalAPIException(
+                    HttpStatus.NOT_FOUND,
+                    "No articles found for category: " + slug
+            );
+        }
+
+        // Mapping Article -> ArticleDto
+        return articles.stream()
+                .map(article -> modelMapper.map(article, ArticleDto.class))
+                .collect(Collectors.toList());
     }
 }

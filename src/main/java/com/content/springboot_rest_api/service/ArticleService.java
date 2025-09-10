@@ -17,4 +17,5 @@ public interface ArticleService {
     ArticleDto updateArticle(Long id, ArticleDto dto, MultipartFile thumbnail) throws IOException;
 
     void deleteArticle(Long id);
+
 }

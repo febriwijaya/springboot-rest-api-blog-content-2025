@@ -96,6 +96,19 @@ public class CategoryController {
         }
     }
 
+    @GetMapping("{slug}/articles")
+    public ResponseEntity<?> getArticlesByCategorySlug(@PathVariable("slug") String slug) {
+        try {
+            return ResponseEntity.ok(categoryService.getArticlesByCategorySlug(slug));
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching articles for category slug {}", slug, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching articles for category slug {}", slug, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     //  Helper method biar engga copy-paste error response
     private ResponseEntity<ErrorDetails> buildErrorResponse(String message, String details, HttpStatus status) {
         ErrorDetails errorDetails = new ErrorDetails(
