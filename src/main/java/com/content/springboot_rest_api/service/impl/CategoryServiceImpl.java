@@ -9,6 +9,8 @@ import lombok.AllArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -38,6 +40,11 @@ public class CategoryServiceImpl implements CategoryService {
                     "Slug already exists: " + slug);
         }
         category.setSlug(slug);
+
+        // ambil username dari authentication
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        category.setCreatedBy(username);
 
         // Save ke DB
         Category savedCategory = categoryRepository.save(category);
@@ -85,6 +92,11 @@ public class CategoryServiceImpl implements CategoryService {
                     "Slug already exists: " + slug);
         }
         category.setSlug(slug);
+
+        // ambil username dari authentication
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        category.setUpdatedBy(username);
 
         Category updated = categoryRepository.save(category);
         return modelMapper.map(updated, CategoryDto.class);

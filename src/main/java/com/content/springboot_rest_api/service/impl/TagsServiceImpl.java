@@ -8,6 +8,8 @@ import com.content.springboot_rest_api.service.TagService;
 import lombok.AllArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -37,6 +39,10 @@ public class TagsServiceImpl implements TagService {
                     "Slug already exists: " + slug);
         }
         tag.setSlug(slug);
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        tag.setCreatedBy(username);
 
         // save ke DB
         Tag savedTag = tagRepository.save(tag);
@@ -85,6 +91,10 @@ public class TagsServiceImpl implements TagService {
         }
 
         tag.setSlug(slug);
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        tag.setUpdatedBy(username);
 
         Tag updated = tagRepository.save(tag);
         return modelMapper.map(updated, TagDto.class);

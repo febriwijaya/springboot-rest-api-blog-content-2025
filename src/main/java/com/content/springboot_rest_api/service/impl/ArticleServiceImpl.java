@@ -16,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -89,6 +91,10 @@ public class ArticleServiceImpl implements ArticleService {
             String path = saveFile(thumbnail, article.getSlug());
             article.setThumbnailUrl(path); // simpan relative URL
         }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        article.setCreatedBy(username);
 
         Article saved = articlesRepository.save(article);
         return mapToResponse(saved);
@@ -166,6 +172,10 @@ public class ArticleServiceImpl implements ArticleService {
             String path = saveFile(thumbnail, article.getSlug() != null ? article.getSlug() : "article");
             article.setThumbnailUrl(path);
         }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        article.setUpdatedBy(username);
 
         Article updated = articlesRepository.save(article);
         return mapToResponse(updated);
