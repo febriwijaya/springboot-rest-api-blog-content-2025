@@ -1,6 +1,8 @@
 package com.content.springboot_rest_api.service.impl;
 
+import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.dto.TagDto;
+import com.content.springboot_rest_api.entity.Article;
 import com.content.springboot_rest_api.entity.Tag;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.TagRepository;
@@ -13,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -108,5 +111,21 @@ public class TagsServiceImpl implements TagService {
                         "Tag not found with id : " + id));
 
         tagRepository.delete(tag);
+    }
+
+    @Override
+    public List<ArticleDto> getArticlesByTagSlug(String slug) {
+        Tag tag = tagRepository.findBySlug(slug)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Tag not found with slug : " + slug));
+
+        Set<Article> articles = tag.getArticles();
+
+        if(articles == null || articles.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "No articles found for tag : " + slug);
+        }
+
+        return articles.stream()
+                .map(article -> modelMapper.map(article, ArticleDto.class))
+                .collect(Collectors.toList());
     }
 }

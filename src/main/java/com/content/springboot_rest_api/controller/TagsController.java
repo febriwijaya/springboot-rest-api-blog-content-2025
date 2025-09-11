@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.controller;
 
 
+import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.dto.TagDto;
 import com.content.springboot_rest_api.exception.ErrorDetails;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
@@ -39,7 +40,7 @@ public class TagsController {
     }
 
     @GetMapping
-    public ResponseEntity<?> getAllCategories() {
+    public ResponseEntity<?> getAllTags() {
         try {
             List<TagDto> tags = tagService.getAllTags();
             return ResponseEntity.ok(tags);
@@ -52,7 +53,23 @@ public class TagsController {
         }
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{slug}/articles")
+    public ResponseEntity<?> getAllArticleByTag(
+            @PathVariable String slug
+    ) {
+        try {
+            List<ArticleDto> tags = tagService.getArticlesByTagSlug(slug);
+            return ResponseEntity.ok(tags);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching all article by tags", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching all article by tags", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/{id}")
     public ResponseEntity<?> getTagById(@PathVariable("id") Long id) {
         try {
             TagDto tagDto = tagService.getTagsById(id);
@@ -66,7 +83,7 @@ public class TagsController {
         }
     }
 
-    @PutMapping("{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<?> updateTags (
             @PathVariable("id") Long id,
             @Valid @RequestBody TagDto tagDto
@@ -84,7 +101,7 @@ public class TagsController {
     }
 
 
-    @DeleteMapping("{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteTagsById(@PathVariable("id") Long id) {
 
         try {

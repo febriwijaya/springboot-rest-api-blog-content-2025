@@ -80,7 +80,7 @@ public class ArticleServiceImpl implements ArticleService {
         article.setSlug(generateSlug(articleDto.getTitle()));
         article.setIsApprove("P");
 
-        // ✅ handle tags
+        //  handle tags
         if (articleDto.getTagIds() != null && !articleDto.getTagIds().isEmpty()) {
             Set<Tag> tags = new HashSet<>(tagRepository.findAllById(articleDto.getTagIds()));
             article.setTags(tags);
@@ -108,6 +108,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
+
 
     @Override
     @Transactional
@@ -203,6 +204,26 @@ public class ArticleServiceImpl implements ArticleService {
         log.info("Article with id {} deleted successfully", id);
     }
 
+
+    @Override
+    @Transactional
+    public ArticleDto getArticleBySlug(String slug) {
+
+        Article article = articlesRepository.findBySlug(slug)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
+
+        // jika null, set 0 dulu
+        if(article.getViews() == null) {
+            article.setViews(0L);
+        }
+
+        // tambahkan + 1 view
+        article.setViews(article.getViews() + 1);
+        articlesRepository.save(article);
+
+        return mapToResponse(article);
+    }
+
     // ---------------- Helper Methods (COPY STYLE UserServiceImpl) ----------------
     private void validateFile(MultipartFile file) {
         log.info("Validating thumbnail: name={}, size={}, mime={}",
@@ -273,7 +294,7 @@ public class ArticleServiceImpl implements ArticleService {
         // sudah tersimpan sebagai relative URL; langsung pakai
         dto.setThumbnailUrl(article.getThumbnailUrl());
 
-        // ✅ tambahkan mapping tags
+        //  tambahkan mapping tags
         if (article.getTags() != null && !article.getTags().isEmpty()) {
             dto.setTagIds(article.getTags().stream()
                     .map(Tag::getId)

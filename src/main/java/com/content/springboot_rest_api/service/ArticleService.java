@@ -18,4 +18,6 @@ public interface ArticleService {
 
     void deleteArticle(Long id);
 
+    ArticleDto getArticleBySlug(String slug);
+
 }

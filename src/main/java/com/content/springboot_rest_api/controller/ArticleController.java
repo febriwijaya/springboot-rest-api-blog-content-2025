@@ -64,7 +64,7 @@ public class ArticleController {
         }
     }
 
-    @DeleteMapping("{id}")
+    @DeleteMapping("/{id}")
     public  ResponseEntity<?> deleteArticle(@PathVariable("id") Long id) {
         try {
             articleService.deleteArticle(id);
@@ -92,7 +92,7 @@ public class ArticleController {
         }
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<?> getArticleById(@PathVariable("id") Long id) {
         try {
             ArticleDto articleDto = articleService.getArticleById(id);
@@ -102,6 +102,20 @@ public class ArticleController {
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
             log.error("Unexpected error while fetching article with id {}", id, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<?> getArticleBySlug(@PathVariable("slug") String slug) {
+        try {
+            ArticleDto articleDto = articleService.getArticleBySlug(slug);
+            return new ResponseEntity<>(articleDto, HttpStatus.OK);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching article with slug {}", slug, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching article with id {}", slug, e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
