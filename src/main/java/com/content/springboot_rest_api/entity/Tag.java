@@ -22,6 +22,12 @@ public class Tag extends BaseEntity{
     @Column(nullable = false, unique = true, length = 100)
     private String slug;
 
+    @Column(name = "auth_code", nullable = false, length = 20)
+    private String authCode;
+
+    @Column(name = "action_code", nullable = false, length = 20)
+    private String actionCode;
+
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @JsonIgnore
     private Set<Article> articles = new HashSet<>();

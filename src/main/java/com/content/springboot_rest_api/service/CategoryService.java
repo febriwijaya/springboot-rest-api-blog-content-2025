@@ -19,4 +19,7 @@ public interface CategoryService {
 
     List<ArticleDto> getArticlesByCategorySlug(String slug);
 
+    //  approval dan reject sekarang digabung jadi satu method
+    CategoryDto approveOrRejectCategory(Long id, CategoryDto categoryDto);
+
 }

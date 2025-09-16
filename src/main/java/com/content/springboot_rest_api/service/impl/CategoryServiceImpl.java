@@ -10,12 +10,13 @@ import com.content.springboot_rest_api.repository.CategoryRepository;
 import com.content.springboot_rest_api.service.CategoryService;
 import lombok.AllArgsConstructor;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,38 +30,33 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryDto addCategory(CategoryDto categoryDto) {
-        // Mapping DTO ke Entity
         Category category = modelMapper.map(categoryDto, Category.class);
 
-        // Generate slug dari name
         String slug = category.getName()
                 .toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-")  // Ganti spasi/karakter spesial dengan "-"
-                .replaceAll("(^-|-$)", "");     // Hapus tanda "-" di awal/akhir
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
 
-        // Cek apakah slug sudah ada
         if (categoryRepository.existsBySlug(slug)) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
                     "Slug already exists: " + slug);
         }
         category.setSlug(slug);
 
-        // ambil username dari authentication
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
         category.setCreatedBy(username);
+        category.setActionCode("A");
+        category.setAuthCode("P");
+        category.setCreatedAt(LocalDateTime.now());
 
-        // Save ke DB
         Category savedCategory = categoryRepository.save(category);
-
-        // Balikin response DTO
         return modelMapper.map(savedCategory, CategoryDto.class);
     }
 
     @Override
     public List<CategoryDto> getAllCategories() {
         List<Category> categories = categoryRepository.findAll();
-
         return categories.stream()
                 .map(category -> modelMapper.map(category, CategoryDto.class))
                 .collect(Collectors.toList());
@@ -68,11 +64,9 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryDto getCategory(Long id) {
-
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() ->  new GlobalAPIException(HttpStatus.NOT_FOUND,
-                "Category not found with id : " + id));
-
+                        "Category not found with id : " + id));
         return modelMapper.map(category, CategoryDto.class);
     }
 
@@ -84,23 +78,22 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.setName(categoryDto.getName());
 
-        // Generate slug dari name
         String slug = categoryDto.getName()
                 .toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-")  // Ganti spasi/karakter spesial dengan "-"
-                .replaceAll("(^-|-$)", "");     // Hapus tanda "-" di awal/akhir
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
 
-        // Cek apakah slug sudah ada
         if (categoryRepository.existsBySlug(slug)) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
                     "Slug already exists: " + slug);
         }
         category.setSlug(slug);
 
-        // ambil username dari authentication
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
         category.setUpdatedBy(username);
+        category.setActionCode("E");
+        category.setAuthCode("P");
 
         Category updated = categoryRepository.save(category);
         return modelMapper.map(updated, CategoryDto.class);
@@ -111,22 +104,21 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() ->  new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Category not found with id : " + id));
-        categoryRepository.delete(category);
+        category.setActionCode("D");
+        category.setAuthCode("P");
+        categoryRepository.save(category);
     }
 
     @Override
     public List<ArticleDto> getArticlesByCategorySlug(String slug) {
-        // Cek apakah category ada
         Category category = categoryRepository.findBySlug(slug)
                 .orElseThrow(() -> new GlobalAPIException(
                         HttpStatus.NOT_FOUND,
                         "Category not found with slug : " + slug
                 ));
 
-        // Ambil semua artikel berdasarkan kategori
         List<Article> articles = articlesRepository.findByCategory(category);
 
-        // Validasi kalau artikel kosong
         if (articles.isEmpty()) {
             throw new GlobalAPIException(
                     HttpStatus.NOT_FOUND,
@@ -134,9 +126,59 @@ public class CategoryServiceImpl implements CategoryService {
             );
         }
 
-        // Mapping Article -> ArticleDto
         return articles.stream()
                 .map(article -> modelMapper.map(article, ArticleDto.class))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public CategoryDto approveOrRejectCategory(Long id, CategoryDto categoryDto) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
+                        "Category not found with id : " + id));
+
+        // ambil username dari authentication
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        // set siapa yang update
+        category.setUpdatedBy(username);
+
+        // logic approve / reject
+        if ("A".equalsIgnoreCase(categoryDto.getAuthCode())) {
+            // jika action code = D (delete) maka hapus
+            if ("D".equalsIgnoreCase(categoryDto.getActionCode())) {
+                categoryRepository.delete(category);
+                return null; // bisa juga return DTO kosong / pesan sukses
+            } else {
+                // approve biasa
+                category.setAuthCode("A");
+                category.setUpdatedAt(java.time.LocalDateTime.now());
+                Category approved = categoryRepository.save(category);
+                return modelMapper.map(approved, CategoryDto.class);
+            }
+        } else if ("R".equalsIgnoreCase(categoryDto.getAuthCode())) {
+            // reject
+            category.setAuthCode("R");
+            category.setUpdatedAt(java.time.LocalDateTime.now());
+            Category rejected = categoryRepository.save(category);
+            return modelMapper.map(rejected, CategoryDto.class);
+        } else {
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
+                    "Invalid auth_code. Only 'A' (approve) or 'R' (reject) allowed.");
+        }
+    }
+
+
+    // ===================== SCHEDULER AUTO DELETE =====================
+    @Scheduled(cron = "0 0 0 * * ?") // jalan tiap jam 0 pagi
+    public void deleteRejectedCategories() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(3);
+        List<Category> rejectedCategories = categoryRepository
+                .findByAuthCodeAndCreatedAtBefore("R", cutoff);
+
+        if (!rejectedCategories.isEmpty()) {
+            categoryRepository.deleteAll(rejectedCategories);
+        }
     }
 }

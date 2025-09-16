@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -29,10 +30,16 @@ public class Article extends BaseEntity{
     private  String content;
 
     @Column(length = 500)
-    private String thumbnailUrl;
+    private String thumbnailUrlPending;
 
-    @Column(name = "is_approve", nullable = false, length = 20)
-    private String isApprove;
+    @Column(length = 500)
+    private String thumbnailUrlApprove;
+
+    @Column(name = "auth_code", nullable = false, length = 20)
+    private String authCode;
+
+    @Column(name = "action_code", nullable = false, length = 20)
+    private String actionCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)

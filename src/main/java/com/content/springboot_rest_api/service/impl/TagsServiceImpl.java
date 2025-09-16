@@ -7,6 +7,7 @@ import com.content.springboot_rest_api.entity.Tag;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.TagRepository;
 import com.content.springboot_rest_api.service.TagService;
+import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,8 @@ public class TagsServiceImpl implements TagService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
         tag.setCreatedBy(username);
+        tag.setAuthCode("P");
+        tag.setActionCode("A");
 
         // save ke DB
         Tag savedTag = tagRepository.save(tag);
@@ -99,6 +102,9 @@ public class TagsServiceImpl implements TagService {
         String username = authentication.getName();
         tag.setUpdatedBy(username);
 
+        tag.setActionCode("E");
+        tag.setAuthCode("P");
+
         Tag updated = tagRepository.save(tag);
         return modelMapper.map(updated, TagDto.class);
 
@@ -110,7 +116,10 @@ public class TagsServiceImpl implements TagService {
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Tag not found with id : " + id));
 
-        tagRepository.delete(tag);
+        tag.setActionCode("D");
+        tag.setAuthCode("P");
+
+        tagRepository.save(tag);
     }
 
     @Override
@@ -128,4 +137,44 @@ public class TagsServiceImpl implements TagService {
                 .map(article -> modelMapper.map(article, ArticleDto.class))
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional
+    public TagDto approveOrRejected(Long id, TagDto tagDto) {
+        Tag tag = tagRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
+                        "Tag not found with id : " + id));
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        String authCode = tagDto.getAuthCode();   // dari FE
+        String actionCode = tagDto.getActionCode(); // dari FE
+
+        if ("A".equalsIgnoreCase(authCode)) {
+            // Jika Approve
+            if ("D".equalsIgnoreCase(actionCode)) {
+                // Jika action = Delete → benar2 delete
+                tagRepository.delete(tag);
+                return null; // karena datanya sudah dihapus
+            } else if ("E".equalsIgnoreCase(actionCode) || "A".equalsIgnoreCase(actionCode)) {
+                // Approve update atau create
+                tag.setAuthCode("A");
+                tag.setUpdatedBy(username);
+                tag.setUpdatedAt(java.time.LocalDateTime.now());
+                Tag updated = tagRepository.save(tag);
+                return modelMapper.map(updated, TagDto.class);
+            }
+        } else if ("R".equalsIgnoreCase(authCode)) {
+            // Jika Rejected
+            tag.setAuthCode("R");
+            tag.setUpdatedBy(username);
+            tag.setUpdatedAt(java.time.LocalDateTime.now());
+            Tag rejected = tagRepository.save(tag);
+            return modelMapper.map(rejected, TagDto.class);
+        }
+
+        throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Invalid authCode or actionCode combination");
+    }
+
 }

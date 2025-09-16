@@ -109,6 +109,26 @@ public class CategoryController {
         }
     }
 
+    @PutMapping("{id}/approval")
+    public ResponseEntity<?> approveOrRejectCategory(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody CategoryDto categoryDto
+    ) {
+        try {
+            CategoryDto result = categoryService.approveOrRejectCategory(id, categoryDto);
+            if (result == null) {
+                return ResponseEntity.ok("Category deleted successfully (approved + delete)");
+            }
+            return ResponseEntity.ok(result);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while approving/rejecting category with id {}", id, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while approving/rejecting category with id {}", id, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     //  Helper method biar engga copy-paste error response
     private ResponseEntity<ErrorDetails> buildErrorResponse(String message, String details, HttpStatus status) {
         ErrorDetails errorDetails = new ErrorDetails(

@@ -18,4 +18,6 @@ public interface TagService {
     void deleteTag(Long id);
 
     List<ArticleDto> getArticlesByTagSlug(String slug);
+
+    TagDto approveOrRejected(Long id, TagDto tagDto);
 }

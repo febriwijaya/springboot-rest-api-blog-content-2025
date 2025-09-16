@@ -26,8 +26,11 @@ public class ArticleDto {
     @NotBlank(message = "content cannot be empty")
     private String content;
 
-    @JsonProperty("thumbnail_url")
-    private String thumbnailUrl;
+    @JsonProperty("thumbnail_url_pending")
+    private String thumbnailUrlPending;
+
+    @JsonProperty("thumbnail_url_approve")
+    private String thumbnailUrlApprove;
 
     @JsonProperty("author_id")
     private Long authorId;
@@ -43,8 +46,11 @@ public class ArticleDto {
     @JsonProperty("category_name")
     private String categoryName;
 
-    @JsonProperty("is_approve")
-    private String isApprove;
+    @JsonProperty("auth_code")
+    private String authCode;
+
+    @JsonProperty("action_code")
+    private String actionCode;
 
     private Long views = 0L;
 

@@ -20,4 +20,12 @@ public interface ArticleService {
 
     ArticleDto getArticleBySlug(String slug);
 
+    List<ArticleDto> getArticlesByCurrentUser();
+
+    List<ArticleDto> getApprovedArticles();
+
+    ArticleDto approveArticle(Long id, ArticleDto dto);
+
+    ArticleDto rejectArticle(Long id, ArticleDto dto);
+
 }

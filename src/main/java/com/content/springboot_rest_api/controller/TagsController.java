@@ -116,6 +116,28 @@ public class TagsController {
         }
     }
 
+    @PutMapping("/{id}/approve-or-reject")
+    public ResponseEntity<?> approveOrRejectTag(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody TagDto tagDto
+    ) {
+        try {
+            TagDto result = tagService.approveOrRejected(id, tagDto);
+            // Kalau null berarti datanya dihapus (approve delete)
+            if (result == null) {
+                return ResponseEntity.ok("Tag with id " + id + " has been deleted (approved for deletion)");
+            }
+            return ResponseEntity.ok(result);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while approving/rejecting tag with id {}", id, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while approving/rejecting tag with id {}", id, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
 
     //  Helper method biar engga copy-paste error response
     private ResponseEntity<ErrorDetails> buildErrorResponse(String message, String details, HttpStatus status) {

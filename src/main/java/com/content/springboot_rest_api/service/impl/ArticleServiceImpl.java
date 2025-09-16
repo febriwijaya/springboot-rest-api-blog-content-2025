@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -51,7 +52,7 @@ public class ArticleServiceImpl implements ArticleService {
         this.modelMapper = modelMapper;
     }
 
-    // === VALIDATION CONST (disamakan dgn UserServiceImpl) ===
+    // === VALIDATION CONST ===
     private static final long MAX_SIZE = 2 * 1024 * 1024; // 2MB
     private static final Map<String, String> ALLOWED_TYPES = Map.ofEntries(
             Map.entry("png",  "image/png"),
@@ -78,9 +79,10 @@ public class ArticleServiceImpl implements ArticleService {
         article.setAuthor(author);
         article.setCategory(category);
         article.setSlug(generateSlug(articleDto.getTitle()));
-        article.setIsApprove("P");
+        article.setAuthCode("P"); // default pending
+        article.setActionCode("A"); // Add
 
-        //  handle tags
+        // handle tags
         if (articleDto.getTagIds() != null && !articleDto.getTagIds().isEmpty()) {
             Set<Tag> tags = new HashSet<>(tagRepository.findAllById(articleDto.getTagIds()));
             article.setTags(tags);
@@ -89,12 +91,11 @@ public class ArticleServiceImpl implements ArticleService {
         if (thumbnail != null && !thumbnail.isEmpty()) {
             validateFile(thumbnail);
             String path = saveFile(thumbnail, article.getSlug());
-            article.setThumbnailUrl(path); // simpan relative URL
+            article.setThumbnailUrlPending(path);
         }
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        article.setCreatedBy(username);
+        article.setCreatedBy(authentication.getName());
 
         Article saved = articlesRepository.save(article);
         return mapToResponse(saved);
@@ -109,24 +110,64 @@ public class ArticleServiceImpl implements ArticleService {
                 .collect(Collectors.toList());
     }
 
-
     @Override
     @Transactional
     public ArticleDto getArticleById(Long id) {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
-        // jika di klik view maka jumlah view bertambah 1
-
-        // jika null, set 0 dulu
         if (article.getViews() == null) {
             article.setViews(0L);
         }
-
         article.setViews(article.getViews() + 1);
         articlesRepository.save(article);
 
         return mapToResponse(article);
+    }
+
+    @Override
+    @Transactional
+    public ArticleDto getArticleBySlug(String slug) {
+        Article article = articlesRepository.findBySlug(slug)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
+
+        if (article.getViews() == null) {
+            article.setViews(0L);
+        }
+        article.setViews(article.getViews() + 1);
+        articlesRepository.save(article);
+
+        return mapToResponse(article);
+    }
+
+    @Override
+    public List<ArticleDto> getArticlesByCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User not found"));
+
+        List<Article> articles = articlesRepository.findByAuthor(user);
+        if (articles.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "Tidak ada artikel milik user ini");
+        }
+
+        return articles.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ArticleDto> getApprovedArticles() {
+        List<Article> articles = articlesRepository.findByAuthCode("A");
+        if (articles.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "Tidak ada artikel dengan status approved");
+        }
+
+        return articles.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     // ---------------- UPDATE ----------------
@@ -148,35 +189,26 @@ public class ArticleServiceImpl implements ArticleService {
                     .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Category not found"));
             article.setCategory(category);
         }
-
         if (dto.getTagIds() != null) {
             Set<Tag> tags = new HashSet<>(tagRepository.findAllById(dto.getTagIds()));
-            article.setTags(tags); // replace lama dengan baru
+            article.setTags(tags);
         }
 
-        // === samakan dengan UserServiceImpl: hapus lama -> simpan baru ===
         if (thumbnail != null && !thumbnail.isEmpty()) {
             validateFile(thumbnail);
 
-            // hapus file lama jika ada
-            if (article.getThumbnailUrl() != null && !article.getThumbnailUrl().isBlank()) {
-                try {
-                    String existingFileName = Paths.get(article.getThumbnailUrl()).getFileName().toString();
-                    Path existingFilePath = Paths.get(thumbnailDir).toAbsolutePath().resolve(existingFileName);
-                    Files.deleteIfExists(existingFilePath);
-                } catch (IOException e) {
-                    log.warn("Gagal menghapus thumbnail lama: {}", article.getThumbnailUrl(), e);
-                }
+            if (article.getThumbnailUrlPending() != null) {
+                deleteThumbnail(article.getThumbnailUrlPending());
             }
 
-            // simpan file baru
-            String path = saveFile(thumbnail, article.getSlug() != null ? article.getSlug() : "article");
-            article.setThumbnailUrl(path);
+            String path = saveFile(thumbnail, article.getSlug());
+            article.setThumbnailUrlPending(path);
         }
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        article.setUpdatedBy(username);
+        article.setUpdatedBy(authentication.getName());
+        article.setAuthCode("P"); // kembali pending
+        article.setActionCode("E"); // Edit
 
         Article updated = articlesRepository.save(article);
         return mapToResponse(updated);
@@ -189,46 +221,98 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
-        // hapus file jika ada (pola sama seperti UserServiceImpl.delete)
-        if (article.getThumbnailUrl() != null && !article.getThumbnailUrl().isBlank()) {
-            try {
-                String existingFileName = Paths.get(article.getThumbnailUrl()).getFileName().toString();
-                Path existingFilePath = Paths.get(thumbnailDir).toAbsolutePath().resolve(existingFileName);
-                Files.deleteIfExists(existingFilePath);
-            } catch (IOException e) {
-                log.warn("Gagal menghapus thumbnail: {}", article.getThumbnailUrl(), e);
-            }
-        }
+        article.setAuthCode("P"); // pending delete
+        article.setActionCode("D");
 
-        articlesRepository.delete(article);
-        log.info("Article with id {} deleted successfully", id);
+        articlesRepository.save(article);
     }
 
-
-    @Override
+    // ---------------- APPROVE ----------------
     @Transactional
-    public ArticleDto getArticleBySlug(String slug) {
-
-        Article article = articlesRepository.findBySlug(slug)
+    @Override
+    public ArticleDto approveArticle(Long id, ArticleDto dto) {
+        Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
-        // jika null, set 0 dulu
-        if(article.getViews() == null) {
-            article.setViews(0L);
+        // FE harus kirim auth_code = "A"
+        if (!"A".equalsIgnoreCase(dto.getAuthCode())) {
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
+                    "Invalid request: auth_code must be 'A' for approval");
         }
 
-        // tambahkan + 1 view
-        article.setViews(article.getViews() + 1);
-        articlesRepository.save(article);
+        String action = dto.getActionCode();
+        if (action == null) {
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "action_code tidak boleh kosong");
+        }
 
-        return mapToResponse(article);
+        switch (action) {
+            case "A": // First Add
+                if (article.getThumbnailUrlPending() != null) {
+                    article.setThumbnailUrlApprove(article.getThumbnailUrlPending());
+                    article.setThumbnailUrlPending(null);
+                }
+                break;
+
+            case "E": // Edit
+                if (article.getThumbnailUrlApprove() != null) {
+                    deleteThumbnail(article.getThumbnailUrlApprove());
+                }
+                if (article.getThumbnailUrlPending() != null) {
+                    article.setThumbnailUrlApprove(article.getThumbnailUrlPending());
+                    article.setThumbnailUrlPending(null);
+                }
+                break;
+
+            case "D": // Delete
+                deleteThumbnail(article.getThumbnailUrlPending());
+                deleteThumbnail(article.getThumbnailUrlApprove());
+                articlesRepository.delete(article);
+                return null;
+
+            default:
+                throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
+                        "Invalid action_code for approval: " + action);
+        }
+
+        article.setAuthCode("A"); // Approved
+        article.setActionCode(action);
+        article.setUpdatedBy(SecurityContextHolder.getContext().getAuthentication().getName());
+        article.setUpdatedAt(java.time.LocalDateTime.now());
+
+        Article saved = articlesRepository.save(article);
+        return mapToResponse(saved);
     }
 
-    // ---------------- Helper Methods (COPY STYLE UserServiceImpl) ----------------
-    private void validateFile(MultipartFile file) {
-        log.info("Validating thumbnail: name={}, size={}, mime={}",
-                file.getOriginalFilename(), file.getSize(), file.getContentType());
+    // ---------------- REJECT ----------------
+    @Transactional
+    @Override
+    public ArticleDto rejectArticle(Long id, ArticleDto dto) {
+        Article article = articlesRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
+        // FE harus kirim auth_code = "R"
+        if (!"R".equalsIgnoreCase(dto.getAuthCode())) {
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
+                    "Invalid request: auth_code must be 'R' for rejection");
+        }
+
+        // kalau ada pending thumbnail → hapus
+        if (article.getThumbnailUrlPending() != null) {
+            deleteThumbnail(article.getThumbnailUrlPending());
+            article.setThumbnailUrlPending(null);
+        }
+
+        article.setAuthCode("R"); // Rejected
+        article.setActionCode(dto.getActionCode());
+        article.setUpdatedBy(SecurityContextHolder.getContext().getAuthentication().getName());
+        article.setUpdatedAt(java.time.LocalDateTime.now());
+
+        Article saved = articlesRepository.save(article);
+        return mapToResponse(saved);
+    }
+
+    // ---------------- Helper Methods ----------------
+    private void validateFile(MultipartFile file) {
         if (file.getSize() > MAX_SIZE) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Ukuran thumbnail maksimal 2MB");
         }
@@ -251,7 +335,6 @@ public class ArticleServiceImpl implements ArticleService {
         }
     }
 
-    // simpan file -> return relative URL (persis seperti UserServiceImpl)
     private String saveFile(MultipartFile file, String slugSeed) {
         try {
             Path uploadPath = Paths.get(thumbnailDir).toAbsolutePath();
@@ -261,27 +344,34 @@ public class ArticleServiceImpl implements ArticleService {
 
             String originalFileName = Objects.requireNonNull(file.getOriginalFilename());
             String extWithDot = originalFileName.substring(originalFileName.lastIndexOf(".")).toLowerCase();
-
             String safeSeed = (slugSeed == null || slugSeed.isBlank()) ? "article" : slugSeed;
             String fileName = safeSeed + "_" + System.currentTimeMillis() + extWithDot;
 
             Path filePath = uploadPath.resolve(fileName);
             file.transferTo(filePath.toFile());
 
-            // URL publik sesuai WebConfig
             return "/uploads/photos/thumbnails/" + fileName;
-
         } catch (IOException e) {
-            log.error("Error saat menyimpan thumbnail: {}", e.getMessage(), e);
             throw new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Gagal menyimpan thumbnail: " + e.getMessage());
+        }
+    }
+
+    private void deleteThumbnail(String filePath) {
+        if (filePath == null) return;
+        try {
+            String fileName = Paths.get(filePath).getFileName().toString();
+            Path existingFilePath = Paths.get(thumbnailDir).toAbsolutePath().resolve(fileName);
+            Files.deleteIfExists(existingFilePath);
+        } catch (IOException e) {
+            log.warn("Gagal menghapus file thumbnail: {}", filePath, e);
         }
     }
 
     private String generateSlug(String title) {
         return title.toLowerCase()
                 .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-|-$", ""); // hapus - di awal/akhir
+                .replaceAll("^-|-$", "");
     }
 
     private ArticleDto mapToResponse(Article article) {
@@ -291,23 +381,34 @@ public class ArticleServiceImpl implements ArticleService {
         dto.setCategoryId(article.getCategory().getId());
         dto.setCategoryName(article.getCategory().getName());
 
-        // sudah tersimpan sebagai relative URL; langsung pakai
-        dto.setThumbnailUrl(article.getThumbnailUrl());
+        dto.setThumbnailUrlPending(article.getThumbnailUrlPending());
+        dto.setThumbnailUrlApprove(article.getThumbnailUrlApprove());
 
-        //  tambahkan mapping tags
         if (article.getTags() != null && !article.getTags().isEmpty()) {
-            dto.setTagIds(article.getTags().stream()
-                    .map(Tag::getId)
-                    .toList());
-
-            dto.setTagNames(article.getTags().stream()
-                    .map(Tag::getName)
-                    .toList());
+            dto.setTagIds(article.getTags().stream().map(Tag::getId).toList());
+            dto.setTagNames(article.getTags().stream().map(Tag::getName).toList());
         } else {
             dto.setTagIds(Collections.emptyList());
             dto.setTagNames(Collections.emptyList());
         }
-
         return dto;
+    }
+
+    /**
+     * Cron job jalan tiap malam jam 00:00
+     * Hapus artikel dengan auth_code = 'R' lebih dari 3 hari,
+     * termasuk file thumbnail pending/approve.
+     */
+    @Scheduled(cron = "0 0 0 * * ?")
+    @Transactional
+    public void deleteExpiredRejectedArticles() {
+        var threeDaysAgo = java.time.LocalDateTime.now().minusDays(3);
+        var expiredArticles = articlesRepository.findByAuthCodeAndCreatedAtBefore("R", threeDaysAgo);
+
+        for (Article article : expiredArticles) {
+            deleteThumbnail(article.getThumbnailUrlPending());
+            deleteThumbnail(article.getThumbnailUrlApprove());
+            articlesRepository.delete(article);
+        }
     }
 }

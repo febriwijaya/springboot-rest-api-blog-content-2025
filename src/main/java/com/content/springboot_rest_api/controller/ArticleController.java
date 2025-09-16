@@ -21,7 +21,7 @@ import java.util.List;
 @Slf4j //-- tambah logger untuk tangkap error
 public class ArticleController {
 
-    private ArticleService articleService;
+    private final ArticleService articleService;
 
     @PostMapping(
             value = "/add",
@@ -116,6 +116,75 @@ public class ArticleController {
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
             log.error("Unexpected error while fetching article with id {}", slug, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // GET all articles by current user
+    @GetMapping("/my-all-articles")
+    public ResponseEntity<?> getArticlesByCurrentUser() {
+        try {
+            List<ArticleDto> articles = articleService.getArticlesByCurrentUser();
+            return ResponseEntity.ok(articles);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching articles by current user", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching articles by current user", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // GET all approved articles
+    @GetMapping("/approved-articles")
+    public ResponseEntity<?> getApprovedArticles() {
+        try {
+            List<ArticleDto> articles = articleService.getApprovedArticles();
+            return ResponseEntity.ok(articles);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching approved articles", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching approved articles", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // APPROVE
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<?> approveArticle(
+            @PathVariable("id") Long id,
+            @RequestBody @Valid ArticleDto dto
+    ) {
+        try {
+            ArticleDto response = articleService.approveArticle(id, dto);
+            if (response == null) {
+                return ResponseEntity.noContent().build();
+            }
+            return ResponseEntity.ok(response);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while approving article with id {}", id, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while approving article with id {}", id, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // REJECT Article
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<?> rejectArticle(
+            @PathVariable("id") Long id,
+            @RequestBody @Valid ArticleDto dto
+    ) {
+        try {
+            ArticleDto response = articleService.rejectArticle(id, dto);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while rejecting article with id {}", id, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while rejecting article with id {}", id, e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

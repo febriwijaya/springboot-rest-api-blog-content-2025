@@ -22,6 +22,12 @@ public class Category extends BaseEntity{
     @Column(nullable = false, unique = true, length = 250)
     private String slug;
 
+    @Column(name = "auth_code", nullable = false, length = 20)
+    private String authCode;
+
+    @Column(name = "action_code", nullable = false, length = 20)
+    private String actionCode;
+
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private List<Article> articles = new ArrayList<>();
