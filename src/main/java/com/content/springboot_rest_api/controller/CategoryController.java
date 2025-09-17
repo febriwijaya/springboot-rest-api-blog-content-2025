@@ -129,6 +129,37 @@ public class CategoryController {
         }
     }
 
+    //  Get all categories milik user yang sedang login
+    @GetMapping("/me")
+    public ResponseEntity<?> getMyCategories() {
+        try {
+            List<CategoryDto> categories = categoryService.getCategoriesByLoggedInUser();
+            return ResponseEntity.ok(categories);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching categories for current user", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching categories for current user", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Get category by slug
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<?> getCategoryBySlug(@PathVariable("slug") String slug) {
+        try {
+            CategoryDto category = categoryService.getCategoryBySlug(slug);
+            return ResponseEntity.ok(category);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching category with slug {}", slug, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching category with slug {}", slug, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
     //  Helper method biar engga copy-paste error response
     private ResponseEntity<ErrorDetails> buildErrorResponse(String message, String details, HttpStatus status) {
         ErrorDetails errorDetails = new ErrorDetails(

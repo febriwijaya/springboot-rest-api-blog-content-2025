@@ -177,4 +177,31 @@ public class TagsServiceImpl implements TagService {
         throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Invalid authCode or actionCode combination");
     }
 
+    @Override
+    public List<TagDto> getAllTagsByCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        List<Tag> tags = tagRepository.findByCreatedBy(username);
+
+        if (tags.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND,
+                    "No tags found for user: " + username);
+        }
+
+        return tags.stream()
+                .map(tag -> modelMapper.map(tag, TagDto.class))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public TagDto getTagsBySlug(String slug) {
+        Tag tag = tagRepository.findBySlug(slug)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
+                        "Tag not found with slug : " + slug));
+
+        return modelMapper.map(tag, TagDto.class);
+    }
+
+
 }

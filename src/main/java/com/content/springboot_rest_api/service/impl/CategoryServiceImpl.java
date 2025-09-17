@@ -8,6 +8,7 @@ import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.ArticlesRepository;
 import com.content.springboot_rest_api.repository.CategoryRepository;
 import com.content.springboot_rest_api.service.CategoryService;
+import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.HttpStatus;
@@ -168,6 +169,35 @@ public class CategoryServiceImpl implements CategoryService {
                     "Invalid auth_code. Only 'A' (approve) or 'R' (reject) allowed.");
         }
     }
+
+    @Override
+    @Transactional
+    public List<CategoryDto> getCategoriesByLoggedInUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        List<Category> categories = categoryRepository.findByCreatedBy(username);
+
+        if (categories.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND,
+                    "No categories found for user: " + username);
+        }
+
+        return categories.stream()
+                .map(category -> modelMapper.map(category, CategoryDto.class))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public CategoryDto getCategoryBySlug(String slug) {
+        Category category = categoryRepository.findBySlug(slug)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
+                        "Category not found with slug : " + slug));
+
+        return modelMapper.map(category, CategoryDto.class);
+    }
+
 
 
     // ===================== SCHEDULER AUTO DELETE =====================

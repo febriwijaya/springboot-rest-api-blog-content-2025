@@ -137,6 +137,37 @@ public class TagsController {
         }
     }
 
+    // Tambahan endpoint untuk ambil semua tag milik user login
+    @GetMapping("/me")
+    public ResponseEntity<?> getAllTagsByCurrentUser() {
+        try {
+            List<TagDto> tags = tagService.getAllTagsByCurrentUser();
+            return ResponseEntity.ok(tags);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching tags for current user", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching tags for current user", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Tambahan endpoint untuk ambil tag berdasarkan slug
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<?> getTagBySlug(@PathVariable("slug") String slug) {
+        try {
+            TagDto tagDto = tagService.getTagsBySlug(slug);
+            return ResponseEntity.ok(tagDto);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching tag with slug {}", slug, apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching tag with slug {}", slug, e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
 
 
     //  Helper method biar engga copy-paste error response

@@ -20,4 +20,8 @@ public interface TagService {
     List<ArticleDto> getArticlesByTagSlug(String slug);
 
     TagDto approveOrRejected(Long id, TagDto tagDto);
+
+    List<TagDto> getAllTagsByCurrentUser();
+
+    TagDto getTagsBySlug(String slug);
 }

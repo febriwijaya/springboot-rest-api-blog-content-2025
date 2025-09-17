@@ -22,4 +22,8 @@ public interface CategoryService {
     //  approval dan reject sekarang digabung jadi satu method
     CategoryDto approveOrRejectCategory(Long id, CategoryDto categoryDto);
 
+    List<CategoryDto> getCategoriesByLoggedInUser();
+
+    CategoryDto getCategoryBySlug(String slug);
+
 }
