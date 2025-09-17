@@ -26,4 +26,7 @@ public interface CategoryService {
 
     CategoryDto getCategoryBySlug(String slug);
 
+    List<CategoryDto> getApprovedCategories();
+
+
 }

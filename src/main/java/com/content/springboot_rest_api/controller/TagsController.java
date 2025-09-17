@@ -167,6 +167,19 @@ public class TagsController {
         }
     }
 
+    @GetMapping("/approved")
+    public ResponseEntity<?> getApprovedTags() {
+        try {
+            List<TagDto> tags = tagService.getApprovedTags();
+            return ResponseEntity.ok(tags);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching approved tags", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching approved tags", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
 
 

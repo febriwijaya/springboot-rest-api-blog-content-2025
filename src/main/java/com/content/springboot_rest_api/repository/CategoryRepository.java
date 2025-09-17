@@ -15,4 +15,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findByAuthCodeAndCreatedAtBefore(String authCode, LocalDateTime createdAt);
 
     List<Category> findByCreatedBy(String createdBy);
+
+    List<Category> findByAuthCode(String authCode);
+
 }

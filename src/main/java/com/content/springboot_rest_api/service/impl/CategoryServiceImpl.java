@@ -198,6 +198,19 @@ public class CategoryServiceImpl implements CategoryService {
         return modelMapper.map(category, CategoryDto.class);
     }
 
+    @Override
+    public List<CategoryDto> getApprovedCategories() {
+        List<Category> categories = categoryRepository.findByAuthCode("A");
+
+        if (categories.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND,
+                    "No approved categories found");
+        }
+
+        return categories.stream()
+                .map(category -> modelMapper.map(category, CategoryDto.class))
+                .collect(Collectors.toList());
+    }
 
 
     // ===================== SCHEDULER AUTO DELETE =====================

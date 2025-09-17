@@ -13,4 +13,7 @@ public interface TagRepository extends JpaRepository<Tag, Long> {
     Optional<Tag> findBySlug(String slug);
 
     List<Tag> findByCreatedBy(String createdBy);
+
+    List<Tag> findByAuthCode(String authCode);
+
 }

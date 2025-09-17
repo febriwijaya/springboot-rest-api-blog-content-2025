@@ -24,4 +24,7 @@ public interface TagService {
     List<TagDto> getAllTagsByCurrentUser();
 
     TagDto getTagsBySlug(String slug);
+
+    List<TagDto> getApprovedTags();
+
 }

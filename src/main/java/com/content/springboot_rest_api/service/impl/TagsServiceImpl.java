@@ -203,5 +203,19 @@ public class TagsServiceImpl implements TagService {
         return modelMapper.map(tag, TagDto.class);
     }
 
+    @Override
+    public List<TagDto> getApprovedTags() {
+        List<Tag> tags = tagRepository.findByAuthCode("A");
+
+        if (tags.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND,
+                    "No approved tags found");
+        }
+
+        return tags.stream()
+                .map(tag -> modelMapper.map(tag, TagDto.class))
+                .collect(Collectors.toList());
+    }
+
 
 }
