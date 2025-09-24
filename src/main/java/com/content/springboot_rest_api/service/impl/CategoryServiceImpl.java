@@ -86,7 +86,7 @@ public class CategoryServiceImpl implements CategoryService {
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -95,7 +95,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(category.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Update data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You may not update other users' data");
         }
 
         category.setName(categoryDto.getName());
@@ -129,7 +129,7 @@ public class CategoryServiceImpl implements CategoryService {
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -138,7 +138,11 @@ public class CategoryServiceImpl implements CategoryService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(category.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh delete data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You cannot delete other users' data");
+        }
+
+        if (category.getAuthCode().equals("P")) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Current category status is pending!");
         }
 
         category.setActionCode("D");

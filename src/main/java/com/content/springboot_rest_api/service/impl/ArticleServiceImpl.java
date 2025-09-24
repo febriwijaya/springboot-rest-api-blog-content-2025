@@ -147,7 +147,7 @@ public class ArticleServiceImpl implements ArticleService {
 
         List<Article> articles = articlesRepository.findByAuthor(user);
         if (articles.isEmpty()) {
-            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "Tidak ada artikel milik user ini");
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "There are no articles belonging to this user");
         }
 
         return articles.stream()
@@ -159,7 +159,7 @@ public class ArticleServiceImpl implements ArticleService {
     public List<ArticleDto> getApprovedArticles() {
         List<Article> articles = articlesRepository.findByAuthCode("A");
         if (articles.isEmpty()) {
-            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "Tidak ada artikel dengan status approved");
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "There are no articles with approved status");
         }
 
         return articles.stream()
@@ -178,7 +178,7 @@ public class ArticleServiceImpl implements ArticleService {
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -187,7 +187,7 @@ public class ArticleServiceImpl implements ArticleService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(article.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Update data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You may not update other users' data");
         }
 
         if (dto.getTitle() != null) {
@@ -238,7 +238,7 @@ public class ArticleServiceImpl implements ArticleService {
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -247,7 +247,7 @@ public class ArticleServiceImpl implements ArticleService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(article.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh delete data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You cannot delete other users' data");
         }
 
         article.setAuthCode("P"); // pending delete
@@ -271,7 +271,7 @@ public class ArticleServiceImpl implements ArticleService {
 
         String action = dto.getActionCode();
         if (action == null) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "action_code tidak boleh kosong");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "action code cannot be empty");
         }
 
         switch (action) {
@@ -343,24 +343,24 @@ public class ArticleServiceImpl implements ArticleService {
     // ---------------- Helper Methods ----------------
     private void validateFile(MultipartFile file) {
         if (file.getSize() > MAX_SIZE) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Ukuran thumbnail maksimal 2MB");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Maximum thumbnail size 2 MB");
         }
 
         String originalFileName = file.getOriginalFilename();
         if (originalFileName == null || !originalFileName.contains(".")) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Format file tidak valid");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Invalid file format");
         }
 
         String ext = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
         if (!ALLOWED_TYPES.containsKey(ext)) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "Format file tidak valid. Hanya boleh: " + String.join(", ", ALLOWED_TYPES.keySet()));
+                    "Invalid file format. Just can : " + String.join(", ", ALLOWED_TYPES.keySet()));
         }
 
         String mimeType = file.getContentType();
         if (mimeType == null || !mimeType.equalsIgnoreCase(ALLOWED_TYPES.get(ext))) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "MIME type tidak sesuai dengan ekstensi file (" + ext + ")");
+                    "MIME type does not match file extension (" + ext + ")");
         }
     }
 
@@ -382,7 +382,7 @@ public class ArticleServiceImpl implements ArticleService {
             return "/uploads/photos/thumbnails/" + fileName;
         } catch (IOException e) {
             throw new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Gagal menyimpan thumbnail: " + e.getMessage());
+                    "Failed to save thumbnail: " + e.getMessage());
         }
     }
 
@@ -393,7 +393,7 @@ public class ArticleServiceImpl implements ArticleService {
             Path existingFilePath = Paths.get(thumbnailDir).toAbsolutePath().resolve(fileName);
             Files.deleteIfExists(existingFilePath);
         } catch (IOException e) {
-            log.warn("Gagal menghapus file thumbnail: {}", filePath, e);
+            log.warn("Failed to delete thumbnail file: {}", filePath, e);
         }
     }
 

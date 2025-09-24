@@ -81,17 +81,17 @@ public class UserServiceImpl implements UserService {
     public UserResponseDto register(UserRegisterDto dto, MultipartFile foto) {
         //  validasi username
         if (userRepository.findByUsername(dto.getUsername()).isPresent()) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Username sudah terdaftar");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Username is already registered");
         }
 
         //  validasi email
         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Email sudah terdaftar");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Email is already registered");
         }
 
         //  validasi phone
         if (userRepository.findByPhone(dto.getPhone()).isPresent()) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Nomor Hp sudah terdaftar");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Mobile number is already registered");
         }
 
         // Validasi dan simpan foto
@@ -110,7 +110,7 @@ public class UserServiceImpl implements UserService {
 
         //  set default role = ROLE_USER
         Role userRole = roleRepository.findByName("ROLE_USER")
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Role USER belum tersedia"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "USER role is not yet available"));
         user.setRoles(Collections.singleton(userRole));
 
         user.setCreatedBy(dto.getUsername());
@@ -130,14 +130,14 @@ public class UserServiceImpl implements UserService {
     public UserResponseDto update(Long id, UserRegisterDto dto, MultipartFile foto) {
 
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User not found"));
 
         //  Ambil user login dari SecurityContext
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login not found"));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -146,7 +146,7 @@ public class UserServiceImpl implements UserService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getId().equals(id)) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh mengupdate data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You may not update other users' data");
         }
 
         // Update field lain dari DTO (selain password yg sudah di-handle)
@@ -165,7 +165,7 @@ public class UserServiceImpl implements UserService {
 
                     Files.deleteIfExists(existingFilePath);
                 } catch (IOException e) {
-                    log.warn("Gagal menghapus file foto lama: {}", user.getFoto(), e);
+                    log.warn("Failed to delete old photo files: {}", user.getFoto(), e);
                 }
             }
 
@@ -205,14 +205,14 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponseDto getById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User not found"));
 
         //  Ambil user login dari SecurityContext
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login not found"));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -221,7 +221,7 @@ public class UserServiceImpl implements UserService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getId().equals(id)) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh melihat data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You may not see other users' data");
         }
 
         UserResponseDto dto = modelMapper.map(user, UserResponseDto.class);
@@ -233,14 +233,14 @@ public class UserServiceImpl implements UserService {
     @Override
     public void delete(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User not found"));
 
         //  Ambil user login dari SecurityContext
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login not found"));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -249,7 +249,7 @@ public class UserServiceImpl implements UserService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getId().equals(id)) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh delete data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You cannot delete other users' data");
         }
 
         // hapus foto jika ada
@@ -261,7 +261,7 @@ public class UserServiceImpl implements UserService {
 
                 Files.deleteIfExists(existingFilePath);
             } catch (IOException e) {
-                log.warn("Gagal menghapus file foto: {}", user.getFoto(), e);
+                log.warn("Failed to delete photo file: {}", user.getFoto(), e);
             }
         }
 
@@ -304,12 +304,12 @@ public class UserServiceImpl implements UserService {
 
         // ukuran max
         if (file.getSize() > MAX_SIZE) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Ukuran photo maksimal 2MB");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Maximum photo size 2MB");
         }
 
         String originalFileName = file.getOriginalFilename();
         if (originalFileName == null || !originalFileName.contains(".")) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Format file tidak valid");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Invalid file format");
         }
 
         // ambil ekstensi
@@ -318,14 +318,14 @@ public class UserServiceImpl implements UserService {
         // cek apakah ada di daftar ekstensi yang diperbolehkan
         if (!ALLOWED_TYPES.containsKey(extension)) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "Format file tidak valid. Hanya boleh: " + String.join(", ", ALLOWED_TYPES.keySet()));
+                    "Invalid file format. Just can: " + String.join(", ", ALLOWED_TYPES.keySet()));
         }
 
         // cek mime type dari file yang diupload
         String mimeType = file.getContentType();
         if (mimeType == null || !mimeType.equalsIgnoreCase(ALLOWED_TYPES.get(extension))) {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "MIME type tidak sesuai dengan ekstensi file (" + extension + ")");
+                    "MIME type does not match file extension (" + extension + ")");
         }
     }
 
@@ -358,9 +358,9 @@ public class UserServiceImpl implements UserService {
             return "/uploads/photos/users/" + fileName;
 
         } catch (IOException e) {
-            log.error("Error saat menyimpan file foto: {}", e.getMessage(), e);
+            log.error("Error while saving photo file: {}", e.getMessage(), e);
             throw new GlobalAPIException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Gagal menyimpan file foto: " + e.getMessage());
+                    "Failed to save photo file: " + e.getMessage());
         }
     }
 }

@@ -87,11 +87,15 @@ public class TagsServiceImpl implements TagService {
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Tag not found with id : " + id));
 
+        if (tag.getAuthCode().equalsIgnoreCase("P")) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "tag status is still pending");
+        }
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -100,7 +104,7 @@ public class TagsServiceImpl implements TagService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(tag.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Update data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You may not update other users' data");
         }
 
         tag.setName(tagDto.getName());
@@ -134,11 +138,15 @@ public class TagsServiceImpl implements TagService {
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Tag not found with id : " + id));
 
+        if (tag.getAuthCode().equalsIgnoreCase("P")) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "tag status is still pending");
+        }
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
 
         Set<String> roles = currentUser.getRoles()
                 .stream()
@@ -147,7 +155,7 @@ public class TagsServiceImpl implements TagService {
 
         //  Validasi hak akses
         if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(tag.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Delete data user lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You cannot delete other users' data");
         }
 
         tag.setActionCode("D");

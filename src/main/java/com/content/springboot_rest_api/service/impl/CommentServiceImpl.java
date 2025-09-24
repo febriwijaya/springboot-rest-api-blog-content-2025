@@ -40,7 +40,7 @@ public class CommentServiceImpl implements CommentService {
 
         // validasi content
         if (commentDto.getContent() == null || commentDto.getContent().isBlank()) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Comment content tidak boleh kosong");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Comment content cannot be empty");
         }
 
         // ambil user dari DB berdasarkan userId yang dikirim dari FE / diambil dari token
@@ -106,14 +106,14 @@ public class CommentServiceImpl implements CommentService {
 
         // validasi kepemilikan comment
         if (comment.getUser() == null || !comment.getUser().getUsername().equals(currentUsername)) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Tidak bisa update comment milik orang lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Can't update other people's comments");
         }
 
         // hanya update content
         if (commentDto.getContent() != null && !commentDto.getContent().isBlank()) {
             comment.setContent(commentDto.getContent());
         } else {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Content tidak boleh kosong");
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Content cannot be empty");
         }
 
         // audit fields
@@ -140,7 +140,7 @@ public class CommentServiceImpl implements CommentService {
 
         // validasi kepemilikan comment
         if (comment.getUser() == null || !comment.getUser().getUsername().equals(currentUsername)) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Tidak bisa menghapus comment milik orang lain");
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Can't delete other people's comments");
         }
 
         commentRepository.delete(comment);

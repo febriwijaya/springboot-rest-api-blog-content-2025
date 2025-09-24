@@ -109,7 +109,7 @@ public class TagsController {
 
         try {
             tagService.deleteTag(id);
-            return ResponseEntity.ok("Tag deleted successfully");
+            return ResponseEntity.ok("Deleted tags are currently queued and awaiting admin approval");
         } catch (GlobalAPIException apiEx) {
             log.error("Error while deleting tag with id {}", id, apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
@@ -185,8 +185,6 @@ public class TagsController {
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
-
 
     //  Helper method biar engga copy-paste error response
     private ResponseEntity<ErrorDetails> buildErrorResponse(String message, String details, HttpStatus status) {

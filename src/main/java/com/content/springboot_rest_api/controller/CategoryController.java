@@ -90,7 +90,7 @@ public class CategoryController {
     public  ResponseEntity<?> deleteCategory(@PathVariable("id") Long id) {
         try {
              categoryService.deleteCategory(id);
-             return ResponseEntity.ok("Category deleted Successfully!");
+             return ResponseEntity.ok("The category is currently in the queue and will be authorized by the admin.!");
         }  catch (GlobalAPIException apiEx) {
             log.error("Error while deleting category with id {}", id, apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
@@ -178,7 +178,6 @@ public class CategoryController {
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
 
     //  Helper method biar engga copy-paste error response
     private ResponseEntity<ErrorDetails> buildErrorResponse(String message, String details, HttpStatus status) {

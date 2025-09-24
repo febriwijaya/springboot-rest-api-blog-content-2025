@@ -77,7 +77,7 @@ public class AuthController {
         }
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @GetMapping(value = "/users")
     public ResponseEntity<?> getAllUsers() {
         try {
@@ -107,7 +107,7 @@ public class AuthController {
         }
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @DeleteMapping("/users/{id}")
     public ResponseEntity<?> deleteUserById(@PathVariable Long id) {
         try {
