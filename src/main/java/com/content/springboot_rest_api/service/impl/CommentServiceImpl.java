@@ -18,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,54 +38,31 @@ public class CommentServiceImpl implements CommentService {
         Article article = articlesRepository.findById(commentDto.getArticleId())
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article Not Found"));
 
+        // validasi content
+        if (commentDto.getContent() == null || commentDto.getContent().isBlank()) {
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Comment content tidak boleh kosong");
+        }
+
+        // ambil user dari DB berdasarkan userId yang dikirim dari FE / diambil dari token
+        User user = userRepository.findById(commentDto.getUserId())
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User Not Found"));
+
+        // buat comment baru
         Comment comment = new Comment();
         comment.setArticle(article);
-
-        // cek apakah ada user yang login
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean hasAuthenticatedUser = auth != null
-                && auth.isAuthenticated()
-                && !(auth instanceof AnonymousAuthenticationToken);
-
-        if (hasAuthenticatedUser) {
-            String username = auth.getName();
-            // ambil user dari DB, kalau ada set ke comment
-            User user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User Not Found"));
-
-            comment.setUser(user);
-            // optional: biarkan name/email null untuk logged in user
-            comment.setName(null);
-            comment.setEmail(null);
-        } else {
-            // guest : wajib ada name & email di DTO
-            if (commentDto.getName() == null || commentDto.getName().isBlank()) {
-                throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Guest name is required");
-            }
-
-            if(commentDto.getEmail() == null || commentDto.getEmail().isBlank()) {
-                throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Guest email is required");
-            }
-
-            comment.setUser(null);
-            comment.setName(commentDto.getName());
-            comment.setEmail(commentDto.getEmail());
-        }
-
-        // isi content wajib ada
-
-        if(commentDto.getContent() == null || commentDto.getContent().isBlank()) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Comment content can not empty");
-        }
-
+        comment.setUser(user);
         comment.setContent(commentDto.getContent());
+
+        // audit field
+        comment.setCreatedAt(LocalDateTime.now());
+        comment.setCreatedBy(user.getUsername());
 
         Comment saved = commentRepository.save(comment);
 
         // mapping ke DTO hasil
         CommentDto response = modelMapper.map(saved, CommentDto.class);
-        response.setArticleId(saved.getArticle() != null ? saved.getArticle().getId() : null);
-        response.setUserId(saved.getUser() != null ? saved.getUser().getId() : null);
+        response.setArticleId(article.getId());
+        response.setUserId(user.getId());
 
         return response;
     }
@@ -123,21 +101,31 @@ public class CommentServiceImpl implements CommentService {
         Comment comment = commentRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Comment not found"));
 
-        // hanya update content (dan mungkin name/email jika guest)
-        if (commentDto.getContent() != null && !commentDto.getContent().isBlank()) {
-            comment.setContent(commentDto.getContent());
+        // ambil user yang sedang login
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        // validasi kepemilikan comment
+        if (comment.getUser() == null || !comment.getUser().getUsername().equals(currentUsername)) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Tidak bisa update comment milik orang lain");
         }
 
-        if (comment.getUser() == null) { // guest comment -> allow update name/email
-            if (commentDto.getName() != null) comment.setName(commentDto.getName());
-            if (commentDto.getEmail() != null) comment.setEmail(commentDto.getEmail());
+        // hanya update content
+        if (commentDto.getContent() != null && !commentDto.getContent().isBlank()) {
+            comment.setContent(commentDto.getContent());
+        } else {
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Content tidak boleh kosong");
         }
+
+        // audit fields
+        comment.setUpdatedAt(LocalDateTime.now());
+        comment.setUpdatedBy(currentUsername);
 
         Comment updated = commentRepository.save(comment);
 
         CommentDto dto = modelMapper.map(updated, CommentDto.class);
         dto.setArticleId(updated.getArticle() != null ? updated.getArticle().getId() : null);
         dto.setUserId(updated.getUser() != null ? updated.getUser().getId() : null);
+
         return dto;
     }
 
@@ -146,6 +134,15 @@ public class CommentServiceImpl implements CommentService {
     public void deleteComment(Long id) {
         Comment comment = commentRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Comment not found"));
+
+        // ambil user yang sedang login
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        // validasi kepemilikan comment
+        if (comment.getUser() == null || !comment.getUser().getUsername().equals(currentUsername)) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Tidak bisa menghapus comment milik orang lain");
+        }
+
         commentRepository.delete(comment);
     }
 

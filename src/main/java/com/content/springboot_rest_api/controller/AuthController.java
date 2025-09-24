@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -57,6 +58,7 @@ public class AuthController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PutMapping(value = "/users/{id}", consumes = {"multipart/form-data"})
     public ResponseEntity<?> updateUser(
             @PathVariable Long id,
@@ -75,6 +77,7 @@ public class AuthController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @GetMapping(value = "/users")
     public ResponseEntity<?> getAllUsers() {
         try {
@@ -89,6 +92,7 @@ public class AuthController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @GetMapping(value = "/users/{id}")
     public ResponseEntity<?> getUserById(@PathVariable Long id) {
         try {
@@ -103,6 +107,7 @@ public class AuthController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @DeleteMapping("/users/{id}")
     public ResponseEntity<?> deleteUserById(@PathVariable Long id) {
         try {

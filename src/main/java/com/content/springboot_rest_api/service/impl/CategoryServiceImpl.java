@@ -4,9 +4,12 @@ import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.dto.CategoryDto;
 import com.content.springboot_rest_api.entity.Article;
 import com.content.springboot_rest_api.entity.Category;
+import com.content.springboot_rest_api.entity.Role;
+import com.content.springboot_rest_api.entity.User;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.ArticlesRepository;
 import com.content.springboot_rest_api.repository.CategoryRepository;
+import com.content.springboot_rest_api.repository.UserRepository;
 import com.content.springboot_rest_api.service.CategoryService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +31,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     private CategoryRepository categoryRepository;
     private ArticlesRepository articlesRepository;
+    private UserRepository userRepository;
     private ModelMapper modelMapper;
 
     @Override
@@ -77,6 +82,22 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() ->  new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Category not found with id : " + id));
 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(category.getCreatedBy())) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Update data user lain");
+        }
+
         category.setName(categoryDto.getName());
 
         String slug = categoryDto.getName()
@@ -90,8 +111,6 @@ public class CategoryServiceImpl implements CategoryService {
         }
         category.setSlug(slug);
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
         category.setUpdatedBy(username);
         category.setActionCode("E");
         category.setAuthCode("P");
@@ -105,6 +124,23 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() ->  new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Category not found with id : " + id));
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(category.getCreatedBy())) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh delete data user lain");
+        }
+
         category.setActionCode("D");
         category.setAuthCode("P");
         categoryRepository.save(category);

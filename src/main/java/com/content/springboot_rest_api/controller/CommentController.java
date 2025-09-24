@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -22,6 +23,7 @@ public class CommentController {
 
     private CommentService commentService;
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PostMapping
     public ResponseEntity<?> addComment(@Valid @RequestBody CommentDto commentDto) {
         try {
@@ -64,6 +66,7 @@ public class CommentController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PutMapping("{id}")
     public ResponseEntity<?> updateCommentArticle(
             @PathVariable("id") Long id,
@@ -81,6 +84,7 @@ public class CommentController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @DeleteMapping("{id}")
     public ResponseEntity<?> deleteComment(@PathVariable("id") Long id) {
         try {

@@ -3,9 +3,13 @@ package com.content.springboot_rest_api.service.impl;
 import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.dto.TagDto;
 import com.content.springboot_rest_api.entity.Article;
+import com.content.springboot_rest_api.entity.Role;
 import com.content.springboot_rest_api.entity.Tag;
+import com.content.springboot_rest_api.entity.User;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
+import com.content.springboot_rest_api.repository.ArticlesRepository;
 import com.content.springboot_rest_api.repository.TagRepository;
+import com.content.springboot_rest_api.repository.UserRepository;
 import com.content.springboot_rest_api.service.TagService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
@@ -24,6 +28,7 @@ import java.util.stream.Collectors;
 public class TagsServiceImpl implements TagService {
 
     private TagRepository tagRepository;
+    private UserRepository userRepository;
     private ModelMapper modelMapper;
 
     @Override
@@ -82,6 +87,22 @@ public class TagsServiceImpl implements TagService {
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Tag not found with id : " + id));
 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(tag.getCreatedBy())) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Update data user lain");
+        }
+
         tag.setName(tagDto.getName());
 
         // Generate slug dari name
@@ -97,9 +118,6 @@ public class TagsServiceImpl implements TagService {
         }
 
         tag.setSlug(slug);
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
         tag.setUpdatedBy(username);
 
         tag.setActionCode("E");
@@ -115,6 +133,22 @@ public class TagsServiceImpl implements TagService {
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Tag not found with id : " + id));
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(tag.getCreatedBy())) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Delete data user lain");
+        }
 
         tag.setActionCode("D");
         tag.setAuthCode("P");

@@ -132,6 +132,23 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
 
+        //  Ambil user login dari SecurityContext
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getId().equals(id)) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh mengupdate data user lain");
+        }
+
         // Update field lain dari DTO (selain password yg sudah di-handle)
         modelMapper.map(dto, user);
 
@@ -162,8 +179,7 @@ public class UserServiceImpl implements UserService {
             user.setPassword(passwordEncoder.encode(dto.getPassword()));
         }
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
+
         user.setUpdatedBy(username);
 
         User updated = userRepository.save(user);
@@ -190,6 +206,24 @@ public class UserServiceImpl implements UserService {
     public UserResponseDto getById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+
+        //  Ambil user login dari SecurityContext
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getId().equals(id)) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh melihat data user lain");
+        }
+
         UserResponseDto dto = modelMapper.map(user, UserResponseDto.class);
         dto.setRoles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()));
         return dto;
@@ -200,6 +234,23 @@ public class UserServiceImpl implements UserService {
     public void delete(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User tidak ditemukan"));
+
+        //  Ambil user login dari SecurityContext
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getId().equals(id)) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh delete data user lain");
+        }
 
         // hapus foto jika ada
         if (user.getFoto() != null && !user.getFoto().isBlank()) {

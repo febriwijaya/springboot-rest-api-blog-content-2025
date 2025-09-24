@@ -1,10 +1,7 @@
 package com.content.springboot_rest_api.service.impl;
 
 import com.content.springboot_rest_api.dto.ArticleDto;
-import com.content.springboot_rest_api.entity.Article;
-import com.content.springboot_rest_api.entity.Category;
-import com.content.springboot_rest_api.entity.Tag;
-import com.content.springboot_rest_api.entity.User;
+import com.content.springboot_rest_api.entity.*;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.ArticlesRepository;
 import com.content.springboot_rest_api.repository.CategoryRepository;
@@ -177,6 +174,22 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(article.getCreatedBy())) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh Update data user lain");
+        }
+
         if (dto.getTitle() != null) {
             article.setTitle(dto.getTitle());
             article.setSlug(generateSlug(dto.getTitle()));
@@ -205,8 +218,8 @@ public class ArticleServiceImpl implements ArticleService {
             article.setThumbnailUrlPending(path);
         }
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        article.setUpdatedBy(authentication.getName());
+
+        article.setUpdatedBy(username);
         article.setAuthCode("P"); // kembali pending
         article.setActionCode("E"); // Edit
 
@@ -220,6 +233,22 @@ public class ArticleServiceImpl implements ArticleService {
     public void deleteArticle(Long id) {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User yg sedang login tidak ditemukan"));
+
+        Set<String> roles = currentUser.getRoles()
+                .stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        //  Validasi hak akses
+        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(article.getCreatedBy())) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Kamu tidak boleh delete data user lain");
+        }
 
         article.setAuthCode("P"); // pending delete
         article.setActionCode("D");

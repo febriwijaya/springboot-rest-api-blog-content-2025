@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ public class TagsController {
 
     private TagService tagService;
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PostMapping
     public ResponseEntity<?> addTags(@Valid @RequestBody TagDto tagDto) {
         try {
@@ -83,6 +85,7 @@ public class TagsController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PutMapping("/{id}")
     public ResponseEntity<?> updateTags (
             @PathVariable("id") Long id,
@@ -100,7 +103,7 @@ public class TagsController {
         }
     }
 
-
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteTagsById(@PathVariable("id") Long id) {
 
@@ -116,6 +119,7 @@ public class TagsController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @PutMapping("/{id}/approve-or-reject")
     public ResponseEntity<?> approveOrRejectTag(
             @PathVariable("id") Long id,
@@ -138,6 +142,7 @@ public class TagsController {
     }
 
     // Tambahan endpoint untuk ambil semua tag milik user login
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @GetMapping("/me")
     public ResponseEntity<?> getAllTagsByCurrentUser() {
         try {

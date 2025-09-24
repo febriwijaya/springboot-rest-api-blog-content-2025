@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +24,8 @@ public class ArticleController {
 
     private final ArticleService articleService;
 
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PostMapping(
             value = "/add",
             consumes = {"multipart/form-data"}
@@ -43,6 +46,7 @@ public class ArticleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PutMapping(
             value = "/update/{id}",
             consumes = { "multipart/form-data" }
@@ -64,6 +68,7 @@ public class ArticleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @DeleteMapping("/{id}")
     public  ResponseEntity<?> deleteArticle(@PathVariable("id") Long id) {
         try {
@@ -120,6 +125,7 @@ public class ArticleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     // GET all articles by current user
     @GetMapping("/my-all-articles")
     public ResponseEntity<?> getArticlesByCurrentUser() {
@@ -150,6 +156,7 @@ public class ArticleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     // APPROVE
     @PutMapping("/{id}/approve")
     public ResponseEntity<?> approveArticle(
@@ -171,6 +178,7 @@ public class ArticleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     // REJECT Article
     @PutMapping("/{id}/reject")
     public ResponseEntity<?> rejectArticle(

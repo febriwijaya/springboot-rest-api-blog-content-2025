@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -23,6 +24,7 @@ public class CategoryController {
 
     private CategoryService categoryService;
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PostMapping
     public ResponseEntity<?> addCategory(@Valid @RequestBody CategoryDto categoryDto) {
         try {
@@ -65,6 +67,7 @@ public class CategoryController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PutMapping("{id}")
     public  ResponseEntity<?> updateCategory(
             @PathVariable("id") Long id,
@@ -82,6 +85,7 @@ public class CategoryController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @DeleteMapping("{id}")
     public  ResponseEntity<?> deleteCategory(@PathVariable("id") Long id) {
         try {
@@ -109,6 +113,7 @@ public class CategoryController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @PutMapping("{id}/approval")
     public ResponseEntity<?> approveOrRejectCategory(
             @PathVariable("id") Long id,
@@ -130,6 +135,7 @@ public class CategoryController {
     }
 
     //  Get all categories milik user yang sedang login
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @GetMapping("/me")
     public ResponseEntity<?> getMyCategories() {
         try {
