@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.controller;
 
 import com.content.springboot_rest_api.dto.ArticleDto;
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.exception.ErrorDetails;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.service.ArticleService;
@@ -35,7 +36,7 @@ public class ArticleController {
             @RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail
             ) {
         try {
-           ArticleDto response = articleService.createArticle(dto, thumbnail, dto.getAuthorId());
+           ArticleDto response = articleService.createArticle(dto, thumbnail);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (GlobalAPIException apiEx) {
             log.error("Error while creating article", apiEx);
@@ -73,7 +74,7 @@ public class ArticleController {
     public  ResponseEntity<?> deleteArticle(@PathVariable("id") Long id) {
         try {
             articleService.deleteArticle(id);
-            return ResponseEntity.ok("Article deleted Successfully!");
+            return ResponseEntity.ok("The article will be deleted and will be queued. Please wait for it to be authorized by the admin.!");
         }  catch (GlobalAPIException apiEx) {
             log.error("Error while deleting article with id {}", id, apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
@@ -161,12 +162,12 @@ public class ArticleController {
     @PutMapping("/{id}/approve")
     public ResponseEntity<?> approveArticle(
             @PathVariable("id") Long id,
-            @RequestBody @Valid ArticleDto dto
+            @RequestBody @Valid AuthorizeReqDto dto
     ) {
         try {
             ArticleDto response = articleService.approveArticle(id, dto);
             if (response == null) {
-                return ResponseEntity.noContent().build();
+                return ResponseEntity.ok("Article deleted successfully (approved + delete)");
             }
             return ResponseEntity.ok(response);
         } catch (GlobalAPIException apiEx) {
@@ -183,7 +184,7 @@ public class ArticleController {
     @PutMapping("/{id}/reject")
     public ResponseEntity<?> rejectArticle(
             @PathVariable("id") Long id,
-            @RequestBody @Valid ArticleDto dto
+            @RequestBody @Valid AuthorizeReqDto dto
     ) {
         try {
             ArticleDto response = articleService.rejectArticle(id, dto);

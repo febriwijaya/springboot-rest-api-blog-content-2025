@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.service.impl;
 
 import com.content.springboot_rest_api.dto.ArticleDto;
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.TagDto;
 import com.content.springboot_rest_api.entity.Article;
 import com.content.springboot_rest_api.entity.Role;
@@ -182,7 +183,7 @@ public class TagsServiceImpl implements TagService {
 
     @Override
     @Transactional
-    public TagDto approveOrRejected(Long id, TagDto tagDto) {
+    public TagDto approveOrRejected(Long id, AuthorizeReqDto tagDto) {
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Tag not found with id : " + id));

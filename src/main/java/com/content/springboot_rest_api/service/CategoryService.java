@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.service;
 
 import com.content.springboot_rest_api.dto.ArticleDto;
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.CategoryDto;
 
 import java.util.List;
@@ -20,7 +21,7 @@ public interface CategoryService {
     List<ArticleDto> getArticlesByCategorySlug(String slug);
 
     //  approval dan reject sekarang digabung jadi satu method
-    CategoryDto approveOrRejectCategory(Long id, CategoryDto categoryDto);
+    CategoryDto approveOrRejectCategory(Long id, AuthorizeReqDto categoryDto);
 
     List<CategoryDto> getCategoriesByLoggedInUser();
 

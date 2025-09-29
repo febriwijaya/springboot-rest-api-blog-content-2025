@@ -2,6 +2,7 @@ package com.content.springboot_rest_api.controller;
 
 
 import com.content.springboot_rest_api.dto.ArticleDto;
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.TagDto;
 import com.content.springboot_rest_api.exception.ErrorDetails;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
@@ -123,7 +124,7 @@ public class TagsController {
     @PutMapping("/{id}/approve-or-reject")
     public ResponseEntity<?> approveOrRejectTag(
             @PathVariable("id") Long id,
-            @Valid @RequestBody TagDto tagDto
+            @Valid @RequestBody AuthorizeReqDto tagDto
     ) {
         try {
             TagDto result = tagService.approveOrRejected(id, tagDto);

@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.service;
 
 import com.content.springboot_rest_api.dto.ArticleDto;
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.TagDto;
 
 import java.util.List;
@@ -19,7 +20,7 @@ public interface TagService {
 
     List<ArticleDto> getArticlesByTagSlug(String slug);
 
-    TagDto approveOrRejected(Long id, TagDto tagDto);
+    TagDto approveOrRejected(Long id, AuthorizeReqDto tagDto);
 
     List<TagDto> getAllTagsByCurrentUser();
 

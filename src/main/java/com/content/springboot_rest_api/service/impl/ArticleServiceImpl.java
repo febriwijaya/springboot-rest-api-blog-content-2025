@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.service.impl;
 
 import com.content.springboot_rest_api.dto.ArticleDto;
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.entity.*;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.ArticlesRepository;
@@ -65,8 +66,11 @@ public class ArticleServiceImpl implements ArticleService {
     // ---------------- CREATE ----------------
     @Transactional
     @Override
-    public ArticleDto createArticle(ArticleDto articleDto, MultipartFile thumbnail, Long authorId) {
-        User author = userRepository.findById(authorId)
+    public ArticleDto createArticle(ArticleDto articleDto, MultipartFile thumbnail) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        User author = userRepository.findByUsername(username)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Author not found"));
 
         Category category = categoryRepository.findById(articleDto.getCategoryId())
@@ -91,8 +95,7 @@ public class ArticleServiceImpl implements ArticleService {
             article.setThumbnailUrlPending(path);
         }
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        article.setCreatedBy(authentication.getName());
+        article.setCreatedBy(username);
 
         Article saved = articlesRepository.save(article);
         return mapToResponse(saved);
@@ -174,6 +177,10 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
+        if (article.getAuthCode().equalsIgnoreCase("P")) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Article data still pending, please authorize!");
+        }
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
@@ -234,6 +241,10 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
+        if (article.getAuthCode().equalsIgnoreCase("P")) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Article data still pending, please authorize!");
+        }
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
@@ -259,7 +270,7 @@ public class ArticleServiceImpl implements ArticleService {
     // ---------------- APPROVE ----------------
     @Transactional
     @Override
-    public ArticleDto approveArticle(Long id, ArticleDto dto) {
+    public ArticleDto approveArticle(Long id, AuthorizeReqDto dto) {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 
@@ -315,7 +326,7 @@ public class ArticleServiceImpl implements ArticleService {
     // ---------------- REJECT ----------------
     @Transactional
     @Override
-    public ArticleDto rejectArticle(Long id, ArticleDto dto) {
+    public ArticleDto rejectArticle(Long id, AuthorizeReqDto dto) {
         Article article = articlesRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Article not found"));
 

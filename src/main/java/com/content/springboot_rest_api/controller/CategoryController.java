@@ -1,5 +1,6 @@
 package com.content.springboot_rest_api.controller;
 
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.CategoryDto;
 import com.content.springboot_rest_api.exception.ErrorDetails;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
@@ -117,7 +118,7 @@ public class CategoryController {
     @PutMapping("{id}/approval")
     public ResponseEntity<?> approveOrRejectCategory(
             @PathVariable("id") Long id,
-            @Valid @RequestBody CategoryDto categoryDto
+            @Valid @RequestBody AuthorizeReqDto categoryDto
     ) {
         try {
             CategoryDto result = categoryService.approveOrRejectCategory(id, categoryDto);

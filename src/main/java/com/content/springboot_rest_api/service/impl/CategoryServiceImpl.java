@@ -1,6 +1,7 @@
 package com.content.springboot_rest_api.service.impl;
 
 import com.content.springboot_rest_api.dto.ArticleDto;
+import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.CategoryDto;
 import com.content.springboot_rest_api.entity.Article;
 import com.content.springboot_rest_api.entity.Category;
@@ -173,7 +174,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public CategoryDto approveOrRejectCategory(Long id, CategoryDto categoryDto) {
+    public CategoryDto approveOrRejectCategory(Long id, AuthorizeReqDto categoryDto) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
                         "Category not found with id : " + id));
