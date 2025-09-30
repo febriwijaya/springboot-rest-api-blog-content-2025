@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -24,6 +25,7 @@ public class RoleController {
 
     private final RoleService roleService;
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @PostMapping
     public ResponseEntity<?> createRole(@RequestBody RoleDto roleDto) {
         try {
@@ -38,6 +40,7 @@ public class RoleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @GetMapping
     public ResponseEntity<?> getAllRoles() {
         try {
@@ -52,6 +55,7 @@ public class RoleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @PutMapping("{id}")
     public ResponseEntity<?> updateRole(
             @PathVariable("id") Long id,
@@ -69,6 +73,7 @@ public class RoleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @DeleteMapping("{id}")
     public ResponseEntity<?> deleteRole(@PathVariable("id") Long id) {
         try {
@@ -83,6 +88,7 @@ public class RoleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @PostMapping("/{roleId}/assign/{userId}")
     public ResponseEntity<?> assignRoleToUser(@PathVariable Long roleId, @PathVariable Long userId) {
         try {
@@ -97,6 +103,7 @@ public class RoleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @DeleteMapping("/{roleId}/remove/{userId}")
     public ResponseEntity<?> removeRoleFromUser(@PathVariable Long roleId, @PathVariable Long userId) {
         try {
@@ -111,6 +118,7 @@ public class RoleController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN')")
     @GetMapping("{id}")
     public ResponseEntity<?> getRoleById(@PathVariable("id") Long id) {
         try {
