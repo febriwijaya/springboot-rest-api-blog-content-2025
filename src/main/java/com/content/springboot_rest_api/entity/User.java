@@ -46,7 +46,7 @@ public class User extends BaseEntity{
 
     private String gender;
 
-    // 🔗 Relasi Many-to-Many dengan Role
+    // Relasi Many-to-Many dengan Role
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
