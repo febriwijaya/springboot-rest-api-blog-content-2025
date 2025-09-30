@@ -43,8 +43,9 @@ public class CommentServiceImpl implements CommentService {
             throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Comment content cannot be empty");
         }
 
-        // ambil user dari DB berdasarkan userId yang dikirim dari FE / diambil dari token
-        User user = userRepository.findById(commentDto.getUserId())
+        // ambil user yang sedang login dari SecurityContext
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "User Not Found"));
 
         // buat comment baru
@@ -52,6 +53,8 @@ public class CommentServiceImpl implements CommentService {
         comment.setArticle(article);
         comment.setUser(user);
         comment.setContent(commentDto.getContent());
+        comment.setName(user.getFullName());   // otomatis dari user login
+        comment.setEmail(user.getEmail());     // otomatis dari user login
 
         // audit field
         comment.setCreatedAt(LocalDateTime.now());
@@ -59,13 +62,16 @@ public class CommentServiceImpl implements CommentService {
 
         Comment saved = commentRepository.save(comment);
 
-        // mapping ke DTO hasil
+        // mapping entity -> DTO
         CommentDto response = modelMapper.map(saved, CommentDto.class);
         response.setArticleId(article.getId());
         response.setUserId(user.getId());
+        response.setName(user.getFullName());
+        response.setEmail(user.getEmail());
 
         return response;
     }
+
 
     @Override
     public CommentDto getComment(Long id) {
@@ -125,6 +131,8 @@ public class CommentServiceImpl implements CommentService {
         CommentDto dto = modelMapper.map(updated, CommentDto.class);
         dto.setArticleId(updated.getArticle() != null ? updated.getArticle().getId() : null);
         dto.setUserId(updated.getUser() != null ? updated.getUser().getId() : null);
+        dto.setUpdatedAt(comment.getUpdatedAt());
+        dto.setUpdatedBy(comment.getCreatedBy());
 
         return dto;
     }
