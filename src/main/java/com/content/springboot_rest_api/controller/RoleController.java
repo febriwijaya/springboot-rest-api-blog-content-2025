@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/categories")
+@RequestMapping("api/role")
 @AllArgsConstructor
 @Slf4j //-- tambah logger untuk tangkap error
 public class RoleController {
