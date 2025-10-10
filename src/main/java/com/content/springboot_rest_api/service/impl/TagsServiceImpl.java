@@ -3,13 +3,12 @@ package com.content.springboot_rest_api.service.impl;
 import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.TagDto;
-import com.content.springboot_rest_api.entity.Article;
-import com.content.springboot_rest_api.entity.Role;
-import com.content.springboot_rest_api.entity.Tag;
-import com.content.springboot_rest_api.entity.User;
+import com.content.springboot_rest_api.dto.TagDtoTmp;
+import com.content.springboot_rest_api.entity.*;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.repository.ArticlesRepository;
 import com.content.springboot_rest_api.repository.TagRepository;
+import com.content.springboot_rest_api.repository.TagTmpRepository;
 import com.content.springboot_rest_api.repository.UserRepository;
 import com.content.springboot_rest_api.service.TagService;
 import jakarta.transaction.Transactional;
@@ -20,8 +19,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,47 +28,110 @@ public class TagsServiceImpl implements TagService {
 
     private TagRepository tagRepository;
     private UserRepository userRepository;
+    private TagTmpRepository tagTmpRepository;
     private ModelMapper modelMapper;
 
     @Override
-    public TagDto createTags(TagDto tagDto) {
-        // Mapping DTO to entity
-        Tag tag = modelMapper.map(tagDto, Tag.class);
-
-        // Generate slug dari name
-        String slug = tag.getName()
+    public TagDtoTmp createTags(TagDto tagDto) {
+        String slug = tagDto.getName()
                 .toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-")  // Ganti spasi/karakter spesial dengan "-"
-                .replaceAll("(^-|-$)", "");     // Hapus tanda "-" di awal/akhir
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
 
-        // cek apakah slug sudah ada
         if (tagRepository.existsBySlug(slug)) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "Slug already exists: " + slug);
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Slug already exists: " + slug);
         }
-        tag.setSlug(slug);
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        tag.setCreatedBy(username);
-        tag.setAuthCode("P");
-        tag.setActionCode("A");
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
 
-        // save ke DB
-        Tag savedTag = tagRepository.save(tag);
+        TagTmp tmp = new TagTmp();
+        tmp.setName(tagDto.getName());
+        tmp.setSlug(slug);
+        tmp.setCreatedBy(username);
+        tmp.setCreatedAt(java.time.LocalDateTime.now());
+        tmp.setAuthCode("P"); // Pending
+        tmp.setActionCode("A"); // Add
 
-        // balikin response DTO
-        return modelMapper.map(savedTag, TagDto.class);
+        TagTmp saved = tagTmpRepository.save(tmp);
+        return convertToTmpDto(saved);
     }
 
     @Override
     public List<TagDto> getAllTags() {
-        List<Tag> tags = tagRepository.findAll();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
 
-        return tags.stream()
-                .map(tag -> modelMapper.map(tag, TagDto.class))
-                .collect(Collectors.toList());
+        // Admin bisa lihat semua tag, user hanya miliknya
+        List<Tag> mainTags = isAdmin
+                ? tagRepository.findAll()
+                : tagRepository.findByCreatedBy(username);
+
+        // Ambil data temporary (pending / edited / deleted)
+        List<TagTmp> latestTmp = tagTmpRepository.findLatestTmpPerTag();
+        List<TagTmp> newTags = tagTmpRepository.findLatestTmpNewTags();
+
+        // Filter untuk user biasa
+        if (!isAdmin) {
+            latestTmp = latestTmp.stream()
+                    .filter(tmp -> username.equals(tmp.getCreatedBy()) || username.equals(tmp.getUpdatedBy()))
+                    .toList();
+            newTags = newTags.stream()
+                    .filter(tmp -> username.equals(tmp.getCreatedBy()) || username.equals(tmp.getUpdatedBy()))
+                    .toList();
+        }
+
+        // Mapping id_tag → TagTmp terbaru
+        Map<Long, TagTmp> tmpMap = latestTmp.stream()
+                .filter(tmp -> tmp.getIdTag() != null)
+                .collect(Collectors.toMap(TagTmp::getIdTag, tmp -> tmp));
+
+        List<TagDto> result = new ArrayList<>();
+
+        // Gabungkan data utama dan temporary
+        for (Tag tag : mainTags) {
+            if (tmpMap.containsKey(tag.getId())) {
+                TagTmp tmp = tmpMap.get(tag.getId());
+
+                if ("P".equals(tmp.getAuthCode())) {
+                    // Pending → tampilkan dari tmp
+                    result.add(convertToDtoFromTmpWithCodes(tmp));
+
+                } else if ("R".equals(tmp.getAuthCode())) {
+                    // Rejected → kalau idTag null tampilkan tmp, kalau tidak tampilkan main
+                    if (tmp.getIdTag() == null) {
+                        result.add(convertToDtoFromTmpWithCodes(tmp));
+                    } else {
+                        TagDto dto = convertToDtoFromMain(tag);
+                        dto.setAuthCode(tmp.getAuthCode());
+                        dto.setActionCode(tmp.getActionCode());
+                        result.add(dto);
+                    }
+
+                } else {
+                    // Approved → tampilkan dari main
+                    TagDto dto = convertToDtoFromMain(tag);
+                    dto.setAuthCode(tmp.getAuthCode());
+                    dto.setActionCode(tmp.getActionCode());
+                    result.add(dto);
+                }
+            } else {
+                // Tidak ada versi tmp → tampilkan main (auth/action null)
+                result.add(convertToDtoFromMain(tag));
+            }
+        }
+
+        // Tambahkan tag baru dari tabel tmp (belum ada di main)
+        newTags.forEach(tmp -> result.add(convertToDtoFromTmpWithCodes(tmp)));
+
+        // Urutkan berdasarkan createdAt terbaru
+        result.sort(Comparator.comparing(TagDto::getCreatedAt).reversed());
+
+        return result;
     }
+
 
     @Override
     public TagDto getTagsById(Long id) {
@@ -83,86 +144,79 @@ public class TagsServiceImpl implements TagService {
     }
 
     @Override
-    public TagDto updateTags(Long id, TagDto tagDto) {
-        Tag tag = tagRepository.findById(id)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
-                        "Tag not found with id : " + id));
-
-        if (tag.getAuthCode().equalsIgnoreCase("P")) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "tag status is still pending");
-        }
+    public TagDtoTmp updateTags(Long id, TagDto tagDto) {
+        Tag existing = tagRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Tag not found with id : " + id));
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User not found."));
 
-        Set<String> roles = currentUser.getRoles()
-                .stream()
-                .map(Role::getName)
-                .collect(Collectors.toSet());
+        boolean isUserOwner = existing.getCreatedBy().equals(username);
+        boolean isAdmin = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equals("ROLE_ADMIN"));
 
-        //  Validasi hak akses
-        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(tag.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You may not update other users' data");
+        if (!isAdmin && !isUserOwner) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You may not edit other users' tags.");
         }
 
-        tag.setName(tagDto.getName());
-
-        // Generate slug dari name
         String slug = tagDto.getName()
                 .toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-")  // Ganti spasi/karakter spesial dengan "-"
-                .replaceAll("(^-|-$)", "");     // Hapus tanda "-" di awal/akhir
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
 
-        // cek apakah slug sudah ada
         if (tagRepository.existsBySlug(slug)) {
-            throw new GlobalAPIException(HttpStatus.BAD_REQUEST,
-                    "Slug already exists: " + slug);
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Slug already exists: " + slug);
         }
 
-        tag.setSlug(slug);
-        tag.setUpdatedBy(username);
+        TagTmp tmp = new TagTmp();
+        tmp.setIdTag(existing.getId());
+        tmp.setName(tagDto.getName());
+        tmp.setSlug(slug);
+        tmp.setCreatedBy(existing.getCreatedBy());
+        tmp.setCreatedAt(existing.getCreatedAt());
+        tmp.setUpdatedBy(username);
+        tmp.setUpdatedAt(java.time.LocalDateTime.now());
+        tmp.setAuthCode("P");
+        tmp.setActionCode("E");
 
-        tag.setActionCode("E");
-        tag.setAuthCode("P");
-
-        Tag updated = tagRepository.save(tag);
-        return modelMapper.map(updated, TagDto.class);
-
+        TagTmp saved = tagTmpRepository.save(tmp);
+        return convertToTmpDto(saved);
     }
 
     @Override
     public void deleteTag(Long id) {
-        Tag tag = tagRepository.findById(id)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
-                        "Tag not found with id : " + id));
-
-        if (tag.getAuthCode().equalsIgnoreCase("P")) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "tag status is still pending");
-        }
+        Tag existing = tagRepository.findById(id)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Tag not found with id : " + id));
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
         User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "The currently logged in user was not found."));
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.UNAUTHORIZED, "User not found."));
 
-        Set<String> roles = currentUser.getRoles()
-                .stream()
-                .map(Role::getName)
-                .collect(Collectors.toSet());
+        boolean isUserOwner = existing.getCreatedBy().equals(username);
+        boolean isAdmin = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equals("ROLE_ADMIN"));
 
-        //  Validasi hak akses
-        if (roles.contains("ROLE_USER") && !currentUser.getUsername().equals(tag.getCreatedBy())) {
-            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You cannot delete other users' data");
+        if (!isAdmin && !isUserOwner) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "You cannot delete other users' tags.");
         }
 
-        tag.setActionCode("D");
-        tag.setAuthCode("P");
+        TagTmp tmp = new TagTmp();
+        tmp.setIdTag(existing.getId());
+        tmp.setName(existing.getName());
+        tmp.setSlug(existing.getSlug());
+        tmp.setCreatedBy(existing.getCreatedBy());
+        tmp.setCreatedAt(existing.getCreatedAt());
+        tmp.setUpdatedBy(username);
+        tmp.setUpdatedAt(java.time.LocalDateTime.now());
+        tmp.setAuthCode("P");
+        tmp.setActionCode("D");
 
-        tagRepository.save(tag);
+        tagTmpRepository.save(tmp);
     }
 
     @Override
@@ -183,41 +237,88 @@ public class TagsServiceImpl implements TagService {
 
     @Override
     @Transactional
-    public TagDto approveOrRejected(Long id, AuthorizeReqDto tagDto) {
-        Tag tag = tagRepository.findById(id)
-                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND,
-                        "Tag not found with id : " + id));
+    public TagDto approveOrRejected(Long tmpId, AuthorizeReqDto req) {
+        TagTmp tmp = tagTmpRepository.findById(tmpId)
+                .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Temporary tag not found."));
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-
-        String authCode = tagDto.getAuthCode();   // dari FE
-        String actionCode = tagDto.getActionCode(); // dari FE
+        String authCode = req.getAuthCode();
+        String actionCode = req.getActionCode();
 
         if ("A".equalsIgnoreCase(authCode)) {
-            // Jika Approve
-            if ("D".equalsIgnoreCase(actionCode)) {
-                // Jika action = Delete → benar2 delete
-                tagRepository.delete(tag);
-                return null; // karena datanya sudah dihapus
-            } else if ("E".equalsIgnoreCase(actionCode) || "A".equalsIgnoreCase(actionCode)) {
-                // Approve update atau create
-                tag.setAuthCode("A");
-                tag.setUpdatedBy(username);
-                tag.setUpdatedAt(java.time.LocalDateTime.now());
-                Tag updated = tagRepository.save(tag);
-                return modelMapper.map(updated, TagDto.class);
+            switch (actionCode) {
+                case "D" -> {
+                    tagRepository.deleteById(tmp.getIdTag());
+                    tmp.setAuthCode("A");
+                    tmp.setActionCode("D");
+                }
+                case "E" -> {
+                    Tag existing = tagRepository.findById(tmp.getIdTag())
+                            .orElseThrow(() -> new GlobalAPIException(HttpStatus.NOT_FOUND, "Original tag not found."));
+                    existing.setName(tmp.getName());
+                    existing.setSlug(tmp.getSlug());
+                    existing.setUpdatedBy(tmp.getUpdatedBy());
+                    existing.setUpdatedAt(java.time.LocalDateTime.now());
+                    tagRepository.save(existing);
+                    tmp.setAuthCode("A");
+                    tmp.setActionCode("E");
+                }
+                case "A" -> {
+                    Tag newTag = new Tag();
+                    newTag.setName(tmp.getName());
+                    newTag.setSlug(tmp.getSlug());
+                    newTag.setCreatedBy(tmp.getCreatedBy());
+                    newTag.setCreatedAt(tmp.getCreatedAt());
+                    Tag saved = tagRepository.save(newTag);
+                    tmp.setIdTag(saved.getId());
+                    tmp.setAuthCode("A");
+                    tmp.setActionCode("A");
+                }
+                default -> throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Invalid action code.");
             }
         } else if ("R".equalsIgnoreCase(authCode)) {
-            // Jika Rejected
-            tag.setAuthCode("R");
-            tag.setUpdatedBy(username);
-            tag.setUpdatedAt(java.time.LocalDateTime.now());
-            Tag rejected = tagRepository.save(tag);
-            return modelMapper.map(rejected, TagDto.class);
+            tmp.setAuthCode("R");
+            tmp.setActionCode(actionCode);
+        } else {
+            throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Invalid authorization code.");
         }
 
-        throw new GlobalAPIException(HttpStatus.BAD_REQUEST, "Invalid authCode or actionCode combination");
+        TagTmp savedTmp = tagTmpRepository.save(tmp);
+        return convertToDtoFromTmpWithCodes(savedTmp);
+    }
+
+
+    @Override
+    public List<TagDto> getApprovedTags() {
+        List<Tag> tags = tagRepository.findAllByOrderByCreatedAtDesc();
+
+        if (tags.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "No approved tags found");
+        }
+
+        return tags.stream()
+                .map(tag -> modelMapper.map(tag, TagDto.class))
+                .toList();
+    }
+
+    @Override
+    public List<TagDtoTmp> getAllTagsTmp() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin) {
+            throw new GlobalAPIException(HttpStatus.FORBIDDEN, "Only admin can view temporary tags.");
+        }
+
+        List<TagTmp> tmpList = tagTmpRepository.findAllByOrderByCreatedAtDesc();
+
+        if (tmpList.isEmpty()) {
+            throw new GlobalAPIException(HttpStatus.NOT_FOUND, "No temporary tags found.");
+        }
+
+        return tmpList.stream()
+                .map(this::convertToTmpDto)
+                .toList();
     }
 
     @Override
@@ -246,18 +347,60 @@ public class TagsServiceImpl implements TagService {
         return modelMapper.map(tag, TagDto.class);
     }
 
-    @Override
-    public List<TagDto> getApprovedTags() {
-        List<Tag> tags = tagRepository.findByAuthCode("A");
+    // ==============================================
+    // HELPER MAPPER METHODS
+    // ==============================================
+    private TagDto convertToDtoFromMain(Tag tag) {
+        TagDto dto = new TagDto();
+        dto.setId(tag.getId());
+        dto.setName(tag.getName());
+        dto.setSlug(tag.getSlug());
+        dto.setCreatedBy(tag.getCreatedBy());
+        dto.setUpdatedBy(tag.getUpdatedBy());
+        dto.setCreatedAt(tag.getCreatedAt());
+        dto.setUpdatedAt(tag.getUpdatedAt());
+        return dto;
+    }
 
-        if (tags.isEmpty()) {
-            throw new GlobalAPIException(HttpStatus.NOT_FOUND,
-                    "No approved tags found");
-        }
+    private TagDto convertToDtoFromTmp(TagTmp tmp) {
+        TagDto dto = new TagDto();
+        dto.setId(tmp.getIdTag());
+        dto.setName(tmp.getName());
+        dto.setSlug(tmp.getSlug());
+        dto.setCreatedBy(tmp.getCreatedBy());
+        dto.setUpdatedBy(tmp.getUpdatedBy());
+        dto.setCreatedAt(tmp.getCreatedAt());
+        dto.setUpdatedAt(tmp.getUpdatedAt());
+        return dto;
+    }
 
-        return tags.stream()
-                .map(tag -> modelMapper.map(tag, TagDto.class))
-                .collect(Collectors.toList());
+    private TagDtoTmp convertToTmpDto(TagTmp tmp) {
+        TagDtoTmp dto = new TagDtoTmp();
+        dto.setIdTmp(tmp.getIdTmp());
+        dto.setIdTag(tmp.getIdTag());
+        dto.setName(tmp.getName());
+        dto.setSlug(tmp.getSlug());
+        dto.setAuthCode(tmp.getAuthCode());
+        dto.setActionCode(tmp.getActionCode());
+        dto.setCreatedBy(tmp.getCreatedBy());
+        dto.setUpdatedBy(tmp.getUpdatedBy());
+        dto.setCreatedAt(tmp.getCreatedAt());
+        dto.setUpdatedAt(tmp.getUpdatedAt());
+        return dto;
+    }
+
+    private TagDto convertToDtoFromTmpWithCodes(TagTmp tmp) {
+        TagDto dto = new TagDto();
+        dto.setId(tmp.getIdTag());
+        dto.setName(tmp.getName());
+        dto.setSlug(tmp.getSlug());
+        dto.setCreatedBy(tmp.getCreatedBy());
+        dto.setUpdatedBy(tmp.getUpdatedBy());
+        dto.setCreatedAt(tmp.getCreatedAt());
+        dto.setUpdatedAt(tmp.getUpdatedAt());
+        dto.setAuthCode(tmp.getAuthCode());
+        dto.setActionCode(tmp.getActionCode());
+        return dto;
     }
 
 

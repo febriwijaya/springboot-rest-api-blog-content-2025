@@ -1,23 +1,22 @@
 package com.content.springboot_rest_api.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TagDto {
+public class CategoryDtoTmp {
 
-    private Long id;
+    private Long idTmp;
 
-    @NotBlank(message = "name cannot be empty")
+    private Long idCategory;
+
     private String name;
 
     private String slug;
@@ -28,15 +27,11 @@ public class TagDto {
     @JsonProperty("action_code")
     private String actionCode;
 
-    @JsonProperty("created_by")
     private String createdBy;
 
-    @JsonProperty("updated_by")
     private String updatedBy;
 
-    @JsonProperty("created_at")
     private LocalDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private LocalDateTime updatedAt;
 }

@@ -14,6 +14,6 @@ public interface TagRepository extends JpaRepository<Tag, Long> {
 
     List<Tag> findByCreatedBy(String createdBy);
 
-    List<Tag> findByAuthCode(String authCode);
+    List<Tag> findAllByOrderByCreatedAtDesc();
 
 }

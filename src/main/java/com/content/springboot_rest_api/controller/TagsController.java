@@ -4,6 +4,7 @@ package com.content.springboot_rest_api.controller;
 import com.content.springboot_rest_api.dto.ArticleDto;
 import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.TagDto;
+import com.content.springboot_rest_api.dto.TagDtoTmp;
 import com.content.springboot_rest_api.exception.ErrorDetails;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.service.TagService;
@@ -31,7 +32,7 @@ public class TagsController {
     @PostMapping
     public ResponseEntity<?> addTags(@Valid @RequestBody TagDto tagDto) {
         try {
-            TagDto savedTags = tagService.createTags(tagDto);
+            TagDtoTmp savedTags = tagService.createTags(tagDto);
             return new ResponseEntity<>(savedTags, HttpStatus.CREATED);
         } catch (GlobalAPIException apiEx) {
             log.error("Error while creating Tags", apiEx);
@@ -93,7 +94,7 @@ public class TagsController {
             @Valid @RequestBody TagDto tagDto
     ) {
         try {
-            TagDto updated = tagService.updateTags(id, tagDto);
+            TagDtoTmp updated = tagService.updateTags(id, tagDto);
             return ResponseEntity.ok(updated);
         } catch (GlobalAPIException apiEx) {
             log.error("Error while updating tag with id {}", id, apiEx);
@@ -123,21 +124,21 @@ public class TagsController {
     @PreAuthorize("hasAnyRole('ADMIN')")
     @PutMapping("/{id}/approve-or-reject")
     public ResponseEntity<?> approveOrRejectTag(
-            @PathVariable("id") Long id,
+            @PathVariable("id") Long idTmp,
             @Valid @RequestBody AuthorizeReqDto tagDto
     ) {
         try {
-            TagDto result = tagService.approveOrRejected(id, tagDto);
+            TagDto result = tagService.approveOrRejected(idTmp, tagDto);
             // Kalau null berarti datanya dihapus (approve delete)
             if (result == null) {
-                return ResponseEntity.ok("Tag with id " + id + " has been deleted (approved for deletion)");
+                return ResponseEntity.ok("Tag with id " + idTmp + " has been deleted (approved for deletion)");
             }
             return ResponseEntity.ok(result);
         } catch (GlobalAPIException apiEx) {
-            log.error("Error while approving/rejecting tag with id {}", id, apiEx);
+            log.error("Error while approving/rejecting tag with id {}", idTmp, apiEx);
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
-            log.error("Unexpected error while approving/rejecting tag with id {}", id, e);
+            log.error("Unexpected error while approving/rejecting tag with id {}", idTmp, e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -183,6 +184,21 @@ public class TagsController {
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
             log.error("Unexpected error while fetching approved tags", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    @GetMapping("/list-auth")
+    public ResponseEntity<?> getListAuth() {
+        try {
+            List<TagDtoTmp> listAuth = tagService.getAllTagsTmp();
+            return ResponseEntity.ok(listAuth);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching list auth tags", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching list auth tags", e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

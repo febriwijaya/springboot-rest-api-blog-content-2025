@@ -12,10 +12,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     Optional<Category> findBySlug(String slug);
 
-    List<Category> findByAuthCodeAndCreatedAtBefore(String authCode, LocalDateTime createdAt);
-
     List<Category> findByCreatedBy(String createdBy);
 
-    List<Category> findByAuthCode(String authCode);
+    // Tambahan: untuk order by createdAt desc
+    List<Category> findAllByOrderByCreatedAtDesc();
 
 }

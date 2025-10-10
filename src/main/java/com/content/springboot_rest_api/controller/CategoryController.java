@@ -2,6 +2,7 @@ package com.content.springboot_rest_api.controller;
 
 import com.content.springboot_rest_api.dto.AuthorizeReqDto;
 import com.content.springboot_rest_api.dto.CategoryDto;
+import com.content.springboot_rest_api.dto.CategoryDtoTmp;
 import com.content.springboot_rest_api.exception.ErrorDetails;
 import com.content.springboot_rest_api.exception.GlobalAPIException;
 import com.content.springboot_rest_api.service.CategoryService;
@@ -27,9 +28,9 @@ public class CategoryController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PostMapping
-    public ResponseEntity<?> addCategory(@Valid @RequestBody CategoryDto categoryDto) {
+    public ResponseEntity<?> addCategory(@Valid @RequestBody CategoryDtoTmp categoryDtoTmp) {
         try {
-            CategoryDto savedCategory = categoryService.addCategory(categoryDto);
+            CategoryDtoTmp savedCategory = categoryService.addCategory(categoryDtoTmp);
             return new ResponseEntity<>(savedCategory, HttpStatus.CREATED);
         } catch (GlobalAPIException apiEx) {
             log.error("Error while creating category", apiEx);
@@ -68,14 +69,43 @@ public class CategoryController {
         }
     }
 
+    @GetMapping("/approved")
+    public ResponseEntity<?> getAllApprovedCategories() {
+        try {
+            List<CategoryDto> categories = categoryService.getAllApprovedCategories();
+            return ResponseEntity.ok(categories);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching list categories", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching list categories", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    @GetMapping("/list-auth")
+    public ResponseEntity<?> getListAuth() {
+        try {
+            List<CategoryDtoTmp> listAuth = categoryService.getAllCategoriesTmp();
+            return ResponseEntity.ok(listAuth);
+        } catch (GlobalAPIException apiEx) {
+            log.error("Error while fetching list auth category", apiEx);
+            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching list auth category", e);
+            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PutMapping("{id}")
     public  ResponseEntity<?> updateCategory(
             @PathVariable("id") Long id,
-            @Valid @RequestBody CategoryDto categoryDto
+            @Valid @RequestBody CategoryDtoTmp categoryDtoTmp
     ) {
         try {
-            CategoryDto updated = categoryService.updateCategory(id, categoryDto);
+            CategoryDtoTmp updated = categoryService.updateCategory(id, categoryDtoTmp);
             return ResponseEntity.ok(updated);
         } catch (GlobalAPIException apiEx) {
             log.error("Error while updating category with id {}", id, apiEx);
@@ -121,7 +151,7 @@ public class CategoryController {
             @Valid @RequestBody AuthorizeReqDto categoryDto
     ) {
         try {
-            CategoryDto result = categoryService.approveOrRejectCategory(id, categoryDto);
+            CategoryDtoTmp result = categoryService.approveOrRejectCategory(id, categoryDto);
             if (result == null) {
                 return ResponseEntity.ok("Category deleted successfully (approved + delete)");
             }
@@ -162,20 +192,6 @@ public class CategoryController {
             return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
         } catch (Exception e) {
             log.error("Unexpected error while fetching category with slug {}", slug, e);
-            return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    @GetMapping("/approved")
-    public ResponseEntity<?> getApprovedCategories() {
-        try {
-            List<CategoryDto> categories = categoryService.getApprovedCategories();
-            return ResponseEntity.ok(categories);
-        } catch (GlobalAPIException apiEx) {
-            log.error("Error while fetching approved categories", apiEx);
-            return buildErrorResponse(apiEx.getMessage(), "Custom business error", apiEx.getStatus());
-        } catch (Exception e) {
-            log.error("Unexpected error while fetching approved categories", e);
             return buildErrorResponse("Unexpected error occurred", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
